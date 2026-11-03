@@ -24,17 +24,52 @@ export function germanRequiredHeuristic(text) {
   return !PLUS_NEARBY.test(around);
 }
 
+// Location terms match as whole words, so "uk" doesn't hit "Ukraine" and "rome" doesn't hit "Jerome".
+const termRe = (t) => new RegExp(`(?:^|[^\\p{L}])${t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}])`, 'iu');
+const cache = new WeakMap();
+function locationRules(config) {
+  if (!cache.has(config)) {
+    cache.set(config, {
+      target: [...(config.targetLocations || []), ...(config.germanyLocations || []), 'armenia', 'yerevan'].map(termRe),
+      blocked: (config.blockedLocations || []).map(termRe),
+    });
+  }
+  return cache.get(config);
+}
+const REMOTE = /\b(remote|anywhere|worldwide|work from home|homeoffice|home office|wfh)\b/gi;
+const REMOTE_OPEN = /\b(armenia|yerevan|anywhere|worldwide|world-wide|global(?:ly)?|unspecified|emea|international)\b/i;
+const REMOTE_RESTRICTED = /\b(eu|eea|europe|european union|schengen|americas?|north america|apac|asia|only)\b/i;
+
+// Onsite/hybrid: fine in any target country (relocation is judged later). Remote: must be open to Armenia.
+export function locationProblem(job, config) {
+  const loc = String(job.location || '').trim();
+  if (!loc) return null;
+  const { target, blocked } = locationRules(config);
+  const remote = job.remote === true || new RegExp(REMOTE.source, 'i').test(loc); // REMOTE is /g: .test() would keep state
+
+  if (remote) {
+    const allowed = job.allowedCountries; // Himalayas gives an explicit list; empty = worldwide
+    if (Array.isArray(allowed) && allowed.length && !allowed.some((c) => /armenia/i.test(c))) return `Remote, not open to Armenia (${loc})`;
+    if (REMOTE_OPEN.test(loc)) return null;
+    // "Remote — Germany" can still mean "relocate to Germany"; let the AI decide those.
+    if (target.some((re) => re.test(loc))) return null;
+    if (blocked.some((re) => re.test(loc)) || REMOTE_RESTRICTED.test(loc.replace(REMOTE, ''))) return `Remote, not open to Armenia (${loc})`;
+    return null; // nothing recognizable — the AI reads the description
+  }
+
+  if (target.some((re) => re.test(loc))) return null;
+  if (blocked.some((re) => re.test(loc))) return `Location outside target countries (${loc})`;
+  return null; // unknown place name (small town, odd format) — the AI gets the country from the text
+}
+
 // Returns null if the job should be scored, or a short human reason if it's filtered out.
 export function prefilter(job, config) {
   const title = job.title || '';
   if (!new RegExp(config.titleMustMatch, 'i').test(title)) return 'Not a developer role';
   if (new RegExp(config.titleExclude, 'i').test(title)) return 'Excluded role type (student, intern, embedded, SAP…)';
 
-  const loc = (job.location || '').toLowerCase();
-  const inGermany = config.germanyLocations.some((c) => loc.includes(c));
-  // Greenhouse/Lever boards list worldwide jobs; Arbeitnow also has AT/CH/NL. Require a German location when we know it.
-  if (loc && !inGermany && !/remote/.test(loc)) return `Location outside Germany (${job.location})`;
-  if (loc && !inGermany && /remote/.test(loc) && !/armenia|anywhere|worldwide|global/i.test(loc)) return `Remote, not open to Armenia (${job.location})`;
+  const why = locationProblem(job, config);
+  if (why) return why;
 
   const text = `${title}\n${job.description || ''}`;
   for (const re of NO_SPONSOR) {

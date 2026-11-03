@@ -23,6 +23,7 @@ async function doRun({ telegram = true, log = console.log } = {}) {
   const started = Date.now();
   log(`[${now}] Collecting jobs…`);
 
+  config._knownIds = new Set(Object.keys(db.jobs)); // LinkedIn search skips detail pages it already has
   const { jobs: raw, report } = await collectAll(config, log);
 
   const byKey = new Map(Object.values(db.jobs).map((j) => [j.dedupKey, j]));

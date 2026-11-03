@@ -3,12 +3,27 @@ import { fetchAdzuna } from './adzuna.js';
 import { fetchGreenhouse } from './greenhouse.js';
 import { fetchLever } from './lever.js';
 import { fetchLinkedinEmails } from './linkedinEmail.js';
+import { fetchLinkedinSearch } from './linkedinSearch.js';
+import { fetchAshby, fetchSmartRecruiters } from './companyBoards.js';
+import { fetchLandingJobs, fetchHackerNews } from './relocationBoards.js';
+import { fetchRemotive, fetchRemoteOk, fetchHimalayas, fetchJobicy, fetchWorkingNomads, fetchWeWorkRemotely } from './remoteBoards.js';
 
 const SOURCES = {
   arbeitnow: (c, cfg) => fetchArbeitnow(c),
   adzuna: (c, cfg) => fetchAdzuna(c, cfg.searchTerms),
   greenhouse: (c) => fetchGreenhouse(c),
   lever: (c) => fetchLever(c),
+  ashby: (c) => fetchAshby(c),
+  smartrecruiters: (c, cfg) => fetchSmartRecruiters(c, cfg),
+  landingjobs: (c) => fetchLandingJobs(c),
+  hackernews: (c) => fetchHackerNews(c),
+  himalayas: (c, cfg) => fetchHimalayas(c, cfg.searchTerms),
+  remotive: (c) => fetchRemotive(c),
+  remoteok: () => fetchRemoteOk(),
+  jobicy: (c) => fetchJobicy(c),
+  workingnomads: () => fetchWorkingNomads(),
+  weworkremotely: (c) => fetchWeWorkRemotely(c),
+  linkedinSearch: (c, cfg) => fetchLinkedinSearch(c, cfg),
   linkedinEmail: (c) => fetchLinkedinEmails(c),
 };
 

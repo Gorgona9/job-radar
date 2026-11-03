@@ -13,11 +13,26 @@ export async function fetchLinkedinEmails(cfg) {
 
   const { ImapFlow } = await import('imapflow');
   const { simpleParser } = await import('mailparser');
-  const client = new ImapFlow({ host: IMAP_HOST, port: 993, secure: true, auth: { user: IMAP_USER, pass: IMAP_PASSWORD }, logger: false });
+  // Gmail shows app passwords as "abcd efgh ijkl mnop" — the spaces are not part of it.
+  const pass = IMAP_PASSWORD.replace(/\s+/g, '');
+  const client = new ImapFlow({
+    host: IMAP_HOST, port: 993, secure: true, auth: { user: IMAP_USER.trim(), pass }, logger: false,
+    connectionTimeout: 20000, greetingTimeout: 15000, socketTimeout: 60000,
+  });
+  client.on('error', () => {}); // socket errors after logout must not crash the run
   const since = new Date(Date.now() - (cfg.daysBack ?? 4) * 864e5);
   const jobs = [];
 
-  await client.connect();
+  try {
+    await client.connect();
+  } catch (e) {
+    // imapflow only says "Command failed"; the server's real reason is in responseText.
+    const why = e.authenticationFailed || /auth|credential|invalid/i.test(e.responseText || '')
+      ? `IMAP login rejected for ${IMAP_USER} — use a Gmail App Password (Google account → Security → 2-Step Verification → App passwords), and make sure IMAP is enabled in Gmail settings`
+      : e.responseText || e.code || e.message;
+    client.close();
+    throw new Error(why);
+  }
   const lock = await client.getMailboxLock('INBOX');
   try {
     for (const from of SENDERS) {
