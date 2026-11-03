@@ -1,0 +1,56 @@
+{
+  "mode": "github",
+  "port": 4310,
+  "scheduleEveryHours": 6,
+
+  "searchTerms": [
+    "java developer",
+    "full stack developer",
+    "fullstack java",
+    "backend developer java",
+    "kotlin developer",
+    "vue developer",
+    "angular developer",
+    "software engineer"
+  ],
+
+  "germanyLocations": [
+    "germany", "deutschland", "berlin", "munich", "münchen", "muenchen", "hamburg", "frankfurt",
+    "cologne", "köln", "koeln", "stuttgart", "düsseldorf", "duesseldorf", "leipzig", "dresden",
+    "karlsruhe", "nuremberg", "nürnberg", "hannover", "hanover", "bonn", "potsdam", "aachen",
+    "heidelberg", "mannheim", "freiburg", "bremen", "dortmund", "essen", "münster", "augsburg",
+    "regensburg", "darmstadt", "wiesbaden", "mainz", "kiel", "ulm", "jena", "erlangen", "walldorf"
+  ],
+
+  "titleMustMatch": "(developer|engineer|entwickler|programmer|full[\\s-]?stack|back[\\s-]?end|front[\\s-]?end|software|java|kotlin|vue|angular|web)",
+  "titleExclude": "(werkstudent|working student|\\bintern\\b|internship|praktik|ausbildung|azubi|trainee|thesis|abschlussarbeit|minijob|\\bstudent|sales engineer|embedded|firmware|hardware|mechanical|electrical|maschinenbau|elektro|sap\\b|salesforce|data scientist|qa engineer|test engineer|support engineer)",
+
+  "skipGermanLanguagePostings": false,
+
+  "sources": {
+    "arbeitnow": { "enabled": true, "maxPages": 6 },
+    "adzuna": { "enabled": true, "maxDaysOld": 7, "resultsPerTerm": 50 },
+    "greenhouse": {
+      "enabled": true,
+      "boards": []
+    },
+    "lever": { "enabled": true, "companies": [] },
+    "linkedinEmail": { "enabled": true, "daysBack": 10 }
+  },
+
+  "knownSponsors": ["NavVis"],
+
+  "scoring": {
+    "model": "claude-haiku-5-5",
+    "coverLetterModel": "claude-sonnet-5-5",
+    "maxJobsPerRun": 150,
+    "concurrency": 4,
+    "blueCardMinEur": 45934
+  },
+
+  "telegram": {
+    "sendVerdicts": ["yes", "likely", "unclear"],
+    "minScore": 0,
+    "dashboardUrl": "http://localhost:4310"
+  }
+}

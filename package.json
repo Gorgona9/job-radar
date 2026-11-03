@@ -1,0 +1,19 @@
+{
+  "name": "job-radar",
+  "version": "1.0.0",
+  "description": "Finds developer jobs in Germany that hire from abroad (visa sponsorship / relocation), scores them against your profile, notifies on Telegram and keeps a local history dashboard.",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=20.6" },
+  "scripts": {
+    "start": "node --env-file=.env src/server.js",
+    "fetch": "node --env-file=.env src/fetch.js",
+    "fetch:quiet": "node --env-file=.env src/fetch.js --no-telegram",
+    "test:telegram": "node --env-file=.env src/telegram.js --test",
+    "ci:fetch": "node src/fetch.js"
+  },
+  "dependencies": {
+    "imapflow": "^1.0.164",
+    "mailparser": "^3.7.1"
+  }
+}

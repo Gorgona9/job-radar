@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Job radar — Germany</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚆</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  color-scheme: light;
+  --paper: #f2f4f8;
+  --surface: #ffffff;
+  --ink: #15203b;
+  --muted: #5f6a86;
+  --line: #d9deea;
+  --board: #1c3c8e;
+  --board-ink: #ffffff;
+  --signal: #f5c518;
+  --go: #1b7f4e;
+  --maybe: #a86b00;
+  --stop: #b83434;
+  --chip: #e8ecf5;
+  --focus: #f5c518;
+  --display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --body: "Barlow", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --paper: #0d1530;
+    --surface: #15204a;
+    --ink: #e7ebf6;
+    --muted: #9aa5c4;
+    --line: #26345f;
+    --board: #1a3283;
+    --go: #4cc98a;
+    --maybe: #f0b13c;
+    --stop: #f07070;
+    --chip: #1f2c5a;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--paper); color: var(--ink); font: 16px/1.5 var(--body); }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+a { color: inherit; }
+
+/* Station board header — the one loud element */
+.board { background: var(--board); color: var(--board-ink); padding: 28px clamp(16px, 4vw, 48px) 22px; }
+.board-inner { max-width: 1180px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-end; justify-content: space-between; }
+.board h1 { font: 600 clamp(26px, 3.4vw, 38px)/1.1 var(--display); margin: 0; letter-spacing: .01em; }
+.board .tally { display: flex; align-items: baseline; gap: 14px; margin-top: 10px; }
+.board .tally b { font: 700 clamp(56px, 8vw, 88px)/0.9 var(--display); color: var(--signal); font-variant-numeric: tabular-nums; }
+.board .tally span { font-size: 17px; max-width: 22ch; opacity: .92; }
+.board .side { display: grid; gap: 10px; justify-items: end; text-align: right; font-size: 14px; opacity: .95; }
+.btn { border: 1px solid var(--line); background: var(--surface); padding: 7px 14px; border-radius: 6px; cursor: pointer; }
+.btn:hover { border-color: var(--muted); }
+.board .btn:not(.primary) { background: transparent; color: var(--board-ink); border-color: rgba(255,255,255,.55); }
+.btn.primary { background: var(--signal); color: #1a1a1a; border-color: var(--signal); font-weight: 600; }
+.btn:disabled { opacity: .55; cursor: progress; }
+
+main { max-width: 1180px; margin: 0 auto; padding: 0 clamp(16px, 4vw, 48px) 80px; }
+
+nav.tabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 2px solid var(--line); margin: 22px 0 14px; }
+nav.tabs button { background: none; border: 0; padding: 10px 14px; cursor: pointer; color: var(--muted); font-weight: 600; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; }
+nav.tabs button[aria-selected="true"] { color: var(--ink); border-color: var(--board); }
+@media (prefers-color-scheme: dark) { nav.tabs button[aria-selected="true"] { border-color: var(--signal); } }
+nav.tabs .n { font-variant-numeric: tabular-nums; font-weight: 500; margin-left: 4px; }
+
+.filters { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin-bottom: 8px; }
+.filters input[type=search] { flex: 1 1 240px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.filters select { padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.chipset { display: flex; gap: 6px; }
+.chipset label { display: flex; align-items: center; gap: 5px; background: var(--chip); padding: 4px 10px; border-radius: 99px; font-size: 14px; cursor: pointer; }
+.filters .range { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+.toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; color: var(--muted); font-size: 14px; margin: 6px 0 10px; }
+
+.day { font: 600 19px/1 var(--display); color: var(--muted); padding: 18px 0 8px; position: sticky; top: 0; background: var(--paper); z-index: 1; }
+.row { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; margin-bottom: 8px; }
+.row.isnew { border-left: 5px solid var(--signal); }
+.row > button.head { all: unset; box-sizing: border-box; display: grid; grid-template-columns: 64px 1fr auto; gap: 16px; align-items: center; width: 100%; padding: 12px 16px; cursor: pointer; }
+.row > button.head:focus-visible { outline: 3px solid var(--focus); border-radius: 8px; }
+.score { font: 700 30px/1 var(--display); text-align: center; font-variant-numeric: tabular-nums; border-radius: 6px; padding: 8px 0 6px; color: #fff; }
+.score.yes { background: var(--go); } .score.likely { background: var(--maybe); } .score.unclear { background: #6c7590; } .score.no, .score.f { background: var(--stop); }
+@media (prefers-color-scheme: dark) { .score.yes, .score.likely { color: #0d1530; } }
+.title { font: 600 20px/1.2 var(--display); }
+.sub { color: var(--muted); font-size: 15px; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; max-width: 360px; }
+.tag { font-size: 13px; padding: 2px 9px; border-radius: 99px; background: var(--chip); white-space: nowrap; }
+.tag.go { color: var(--go); font-weight: 600; } .tag.maybe { color: var(--maybe); font-weight: 600; } .tag.stop { color: var(--stop); font-weight: 600; }
+.tag.mine { background: var(--board); color: #fff; }
+@media (max-width: 700px) { .row > button.head { grid-template-columns: 52px minmax(0, 1fr); } .tags { grid-column: 1 / -1; justify-content: flex-start; max-width: none; } .tag { white-space: normal; } }
+
+.detail { border-top: 1px solid var(--line); padding: 14px 16px 16px; display: grid; gap: 12px; }
+.detail blockquote { margin: 0; padding: 8px 12px; border-left: 4px solid var(--signal); background: var(--chip); border-radius: 0 6px 6px 0; }
+.detail .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; font-size: 15px; }
+.detail h3 { font: 600 16px/1.2 var(--display); margin: 0 0 4px; color: var(--muted); }
+.detail .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.detail textarea { width: 100%; min-height: 60px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); }
+.desc { max-height: 320px; overflow: auto; white-space: pre-wrap; font-size: 14px; background: var(--paper); padding: 10px 12px; border-radius: 6px; max-width: 80ch; }
+.letter { white-space: pre-wrap; background: var(--paper); padding: 14px 16px; border-radius: 6px; max-width: 75ch; }
+.empty { padding: 48px 0; text-align: center; color: var(--muted); }
+.runs table { width: 100%; border-collapse: collapse; font-size: 14px; background: var(--surface); }
+.runs th, .runs td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.runs-wrap { overflow-x: auto; }
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--paper); padding: 10px 18px; border-radius: 6px; display: none; z-index: 5; }
+@media (prefers-reduced-motion: no-preference) { .detail { animation: open .18s ease-out; } @keyframes open { from { opacity: 0; transform: translateY(-4px); } } }
+</style>
+</head>
+<body>
+<header class="board">
+  <div class="board-inner">
+    <div>
+      <h1>Jobs bound for Germany</h1>
+      <div class="tally"><b id="newCount">–</b><span id="newLabel">new since your last visit</span></div>
+    </div>
+    <div class="side">
+      <div id="runInfo">Loading…</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+        <button class="btn" id="seenBtn">Mark all as seen</button>
+        <button class="btn primary" id="fetchBtn">Check for new jobs</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <nav class="tabs" role="tablist" id="tabs"></nav>
+
+  <div class="filters" id="filters">
+    <input type="search" id="q" placeholder="Search title, company, city, skill" aria-label="Search">
+    <div class="chipset" aria-label="Relocation">
+      <label><input type="checkbox" value="yes" checked> Relocation yes</label>
+      <label><input type="checkbox" value="likely" checked> Likely</label>
+      <label><input type="checkbox" value="unclear" checked> Unclear</label>
+    </div>
+    <select id="src" aria-label="Source"><option value="">All sources</option></select>
+    <label class="range">Min score <input type="range" id="minScore" min="0" max="90" step="5" value="0"> <span id="minScoreVal">0</span></label>
+  </div>
+  <div class="toolbar"><span id="countLine"></span>
+    <label>Sort <select id="sort"><option value="found">Newest found</option><option value="score">Best score</option><option value="posted">Newest posted</option></select></label>
+  </div>
+
+  <section id="list" aria-live="polite"></section>
+</main>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const state = { data: null, tab: 'new', open: new Set() };
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const dayFmt = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+const timeFmt = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => (t.style.display = 'none'), 3200); }
+
+async function api(path, body) {
+  const res = await fetch(path, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {});
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || res.statusText);
+  return json;
+}
+
+async function load() {
+  state.data = await api('/api/jobs');
+  render();
+}
+
+const isDismissed = (j) => j.my?.status === 'dismissed';
+const isNew = (j) => j.state === 'match' && !isDismissed(j) && (!state.data.lastSeenAt || j.foundAt > state.data.lastSeenAt);
+
+const TABS = [
+  { id: 'new', label: 'New', test: isNew },
+  { id: 'all', label: 'All matches', test: (j) => j.state === 'match' && !isDismissed(j) },
+  { id: 'saved', label: 'Saved', test: (j) => j.my?.status === 'saved' },
+  { id: 'applied', label: 'Applied', test: (j) => ['applied', 'interview', 'offer', 'rejected'].includes(j.my?.status) },
+  { id: 'hidden', label: 'Filtered out', test: (j) => j.state === 'filtered' || isDismissed(j) },
+  { id: 'pending', label: 'Waiting for scoring', test: (j) => j.state === 'pending' },
+  { id: 'runs', label: 'Run log' },
+];
+
+function salaryText(s) {
+  if (!s || !(s.min || s.max)) return null;
+  const k = (n) => '€' + Math.round(n / 1000) + 'k';
+  return s.min && s.max && s.min !== s.max ? `${k(s.min)}–${k(s.max)}` : k(s.min || s.max);
+}
+
+function render() {
+  const d = state.data;
+  const jobs = d.jobs;
+  const newCount = jobs.filter(isNew).length;
+  $('#newCount').textContent = newCount;
+  $('#newLabel').textContent = newCount === 1 ? 'new match since your last visit' : 'new matches since your last visit';
+  const last = d.runs.at(-1);
+  $('#runInfo').innerHTML = d.mode === 'github'
+    ? `Fetched by GitHub every ${d.scheduleEveryHours} h. Last run ${last ? esc(new Date(last.at).toLocaleString()) : 'never'}.<br>${d.lastSync ? 'Synced ' + esc(timeFmt.format(new Date(d.lastSync.at))) + (d.lastSync.ok ? '' : ' — ' + esc(d.lastSync.message)) : ''}`
+    : `Checks every ${d.scheduleEveryHours} h while this is running.<br>Last check ${last ? esc(new Date(last.at).toLocaleString()) : 'never'}${d.running ? ' — checking now…' : ''}${d.aiEnabled ? '' : '<br>AI scoring off (no API key)'}`;
+  $('#fetchBtn').textContent = d.mode === 'github' ? 'Sync from GitHub' : d.running ? 'Checking…' : 'Check for new jobs';
+  $('#fetchBtn').disabled = d.running;
+
+  const sources = [...new Set(jobs.map((j) => j.source))].sort();
+  const srcSel = $('#src');
+  if (srcSel.options.length - 1 !== sources.length) {
+    const cur = srcSel.value;
+    srcSel.innerHTML = '<option value="">All sources</option>' + sources.map((s) => `<option>${esc(s)}</option>`).join('');
+    srcSel.value = cur;
+  }
+
+  $('#tabs').innerHTML = TABS.map((t) => {
+    const n = t.test ? jobs.filter(t.test).length : d.runs.length;
+    return `<button role="tab" aria-selected="${state.tab === t.id}" data-tab="${t.id}">${t.label}<span class="n">${n}</span></button>`;
+  }).join('');
+
+  $('#filters').style.display = state.tab === 'runs' ? 'none' : '';
+  $('.toolbar').style.display = state.tab === 'runs' ? 'none' : '';
+  if (state.tab === 'runs') return renderRuns();
+
+  const tab = TABS.find((t) => t.id === state.tab);
+  const q = $('#q').value.trim().toLowerCase();
+  const verdicts = [...document.querySelectorAll('.chipset input:checked')].map((i) => i.value);
+  const min = Number($('#minScore').value);
+  const src = srcSel.value;
+  const scored = ['new', 'all', 'saved', 'applied'].includes(state.tab);
+  let list = jobs.filter(tab.test).filter((j) => {
+    if (src && j.source !== src) return false;
+    if (scored && j.verdict) {
+      if (!verdicts.includes(j.verdict.relocation)) return false;
+      if ((j.verdict.score ?? 0) < min) return false;
+    }
+    if (q) {
+      const hay = [j.title, j.company, j.location, j.verdict?.summary, ...(j.verdict?.matched_skills || []), j.description?.slice(0, 3000)].join(' ').toLowerCase();
+      if (!q.split(/\s+/).every((w) => hay.includes(w))) return false;
+    }
+    return true;
+  });
+  const sort = $('#sort').value;
+  list.sort((a, b) => sort === 'score' ? (b.verdict?.score ?? -1) - (a.verdict?.score ?? -1)
+    : sort === 'posted' ? String(b.postedAt || '').localeCompare(String(a.postedAt || ''))
+    : String(b.foundAt).localeCompare(String(a.foundAt)) || (b.verdict?.score ?? 0) - (a.verdict?.score ?? 0));
+
+  $('#countLine').textContent = `${list.length} job${list.length === 1 ? '' : 's'}`;
+  if (!list.length) {
+    const msg = {
+      new: jobs.length ? 'Nothing new since your last visit. Older matches are under All matches.' : 'No jobs yet. Press “Check for new jobs” to run the first search.',
+      saved: 'Save a job from its details to keep it here.',
+      applied: 'Jobs you mark as applied are tracked here.',
+    }[state.tab] || 'No jobs match these filters.';
+    $('#list').innerHTML = `<p class="empty">${esc(msg)}</p>`;
+    return;
+  }
+
+  let html = '', lastDay = '';
+  for (const j of list) {
+    if (sort === 'found') {
+      const day = dayLabel(j.foundAt);
+      if (day !== lastDay) { html += `<h2 class="day">${esc(day)}</h2>`; lastDay = day; }
+    }
+    html += rowHtml(j);
+  }
+  $('#list').innerHTML = html;
+}
+
+function dayLabel(iso) {
+  const d = new Date(iso), today = new Date();
+  const diff = Math.round((new Date(today.toDateString()) - new Date(d.toDateString())) / 864e5);
+  return diff === 0 ? 'Found today' : diff === 1 ? 'Found yesterday' : 'Found ' + dayFmt.format(d);
+}
+
+function rowHtml(j) {
+  const v = j.verdict || {};
+  const open = state.open.has(j.id);
+  const scoreCls = j.state === 'filtered' ? 'f' : v.relocation || 'unclear';
+  const scoreVal = j.state === 'filtered' ? '✕' : j.state === 'pending' ? '…' : v.score ?? '–';
+  const relocCls = { yes: 'go', likely: 'maybe', no: 'stop' }[v.relocation] || '';
+  const tags = [];
+  if (j.state === 'filtered') tags.push(`<span class="tag stop">${esc(j.filterReason)}</span>`);
+  if (v.relocation && j.state !== 'filtered') tags.push(`<span class="tag ${relocCls}">Relocation ${esc(v.relocation)}</span>`);
+  if (v.knownSponsor) tags.push('<span class="tag go">Known sponsor</span>');
+  if (v.german && v.german !== 'none') tags.push(`<span class="tag">German ${v.german === 'nice' ? 'a plus' : 'required'}</span>`);
+  const sal = salaryText(v.salary);
+  if (sal) tags.push(`<span class="tag ${v.blueCard === 'below' ? 'stop' : ''}">${sal}${v.blueCard === 'below' ? ' below Blue Card' : ''}</span>`);
+  if (v.work_mode && v.work_mode !== 'unknown') tags.push(`<span class="tag">${esc(v.work_mode)}</span>`);
+  if (j.my?.status && j.my.status !== 'new') tags.push(`<span class="tag mine">${esc(j.my.status)}</span>`);
+  return `<article class="row ${isNew(j) ? 'isnew' : ''}" id="r-${esc(j.id)}">
+    <button class="head" data-toggle="${esc(j.id)}" aria-expanded="${open}">
+      <div class="score ${scoreCls}" title="Score">${scoreVal}</div>
+      <div><div class="title">${esc(j.title)}</div>
+        <div class="sub">${esc(j.company || 'Company not listed')} — ${esc(j.location || 'location not listed')} <span>| ${esc(j.source)}, ${esc(timeFmt.format(new Date(j.foundAt)))}</span></div></div>
+      <div class="tags">${tags.join('')}</div>
+    </button>
+    ${open ? detailHtml(j) : ''}
+  </article>`;
+}
+
+function detailHtml(j) {
+  const v = j.verdict || {};
+  const my = j.my || {};
+  const also = (j.alsoOn || []).map((s) => { const [src, url] = s.split('|'); return `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(src)}</a>`; }).join(', ');
+  return `<div class="detail">
+    ${v.relocation_evidence ? `<blockquote>${esc(v.relocation_evidence)}</blockquote>` : ''}
+    ${v.summary ? `<p style="margin:0;max-width:75ch">${esc(v.summary)}</p>` : ''}
+    <div class="cols">
+      ${v.matched_skills?.length ? `<div><h3>You match</h3>${esc(v.matched_skills.join(', '))}</div>` : ''}
+      ${v.gaps?.length ? `<div><h3>Gaps to prepare</h3>${esc(v.gaps.join(', '))}</div>` : ''}
+      <div><h3>Details</h3>Seniority ${esc(v.seniority || 'unknown')}. Posted ${j.postedAt ? esc(new Date(j.postedAt).toLocaleDateString()) : 'date unknown'}.${v.by === 'rules' ? ' Scored by keyword rules.' : ''}${also ? `<br>Also on ${also}` : ''}</div>
+    </div>
+    <div class="actions">
+      <a class="btn primary" href="${esc(j.url)}" target="_blank" rel="noopener">Open posting</a>
+      <button class="btn" data-act="saved" data-id="${esc(j.id)}">${my.status === 'saved' ? 'Saved' : 'Save'}</button>
+      <label class="btn" style="display:flex;gap:6px;align-items:center">Status
+        <select data-status="${esc(j.id)}">${['new', 'saved', 'applied', 'interview', 'offer', 'rejected', 'dismissed'].map((s) => `<option ${(my.status || 'new') === s ? 'selected' : ''}>${s}</option>`).join('')}</select></label>
+      <button class="btn" data-act="dismissed" data-id="${esc(j.id)}">Not interested</button>
+      <button class="btn" data-letter="${esc(j.id)}">${my.coverLetter ? 'Rewrite cover letter' : 'Draft cover letter'}</button>
+    </div>
+    <label><span class="sub">Notes</span><textarea data-note="${esc(j.id)}" placeholder="Recruiter name, salary talk, interview dates…">${esc(my.note || '')}</textarea></label>
+    ${my.coverLetter ? `<div><h3>Cover letter <button class="btn" data-copy="${esc(j.id)}" style="margin-left:8px">Copy</button></h3><div class="letter">${esc(my.coverLetter)}</div></div>` : ''}
+    ${j.description ? `<details><summary>Full description</summary><div class="desc">${esc(j.description)}</div></details>` : '<p class="sub" style="margin:0">Only title and company are known for this one — open the posting to check relocation.</p>'}
+  </div>`;
+}
+
+function renderRuns() {
+  const runs = [...state.data.runs].reverse();
+  if (!runs.length) { $('#list').innerHTML = '<p class="empty">No runs yet.</p>'; return; }
+  $('#list').innerHTML = `<div class="runs runs-wrap"><table><thead><tr><th>When</th><th>Collected</th><th>New</th><th>Matches</th><th>Filtered</th><th>Sources</th><th>Telegram</th></tr></thead><tbody>${
+    runs.map((r) => `<tr><td>${esc(new Date(r.at).toLocaleString())}</td><td>${r.collected}</td><td>${r.new}</td><td>${r.matches}</td><td>${r.filtered}</td><td>${
+      Object.entries(r.sources || {}).map(([k, s]) => `${esc(k)}: ${s.skipped ? 'skipped' : s.found}${s.errors?.length ? ` <span style="color:var(--stop)">${esc(s.errors.join('; '))}</span>` : ''}`).join('<br>')
+    }</td><td>${esc(r.telegram || '')}</td></tr>`).join('')}</tbody></table></div>`;
+}
+
+function findJob(id) { return state.data.jobs.find((j) => j.id === id); }
+
+document.addEventListener('click', async (e) => {
+  const t = e.target.closest('[data-tab],[data-toggle],[data-act],[data-letter],[data-copy]');
+  if (!t) return;
+  if (t.dataset.tab) { state.tab = t.dataset.tab; render(); return; }
+  if (t.dataset.toggle) {
+    const id = t.dataset.toggle;
+    state.open.has(id) ? state.open.delete(id) : state.open.add(id);
+    render(); document.querySelector(`[data-toggle="${CSS.escape(id)}"]`)?.focus(); return;
+  }
+  if (t.dataset.act) {
+    const job = findJob(t.dataset.id);
+    const status = job.my?.status === t.dataset.act ? 'new' : t.dataset.act;
+    job.my = await api('/api/status', { id: job.id, status });
+    if (status === 'dismissed') state.open.delete(job.id);
+    toast(status === 'dismissed' ? 'Moved to Filtered out' : status === 'saved' ? 'Saved' : 'Status cleared');
+    render(); return;
+  }
+  if (t.dataset.letter) {
+    const job = findJob(t.dataset.letter);
+    t.disabled = true; t.textContent = 'Writing…';
+    try { const r = await api('/api/cover-letter', { id: job.id }); job.my = { ...(job.my || {}), coverLetter: r.text }; render(); }
+    catch (err) { toast(err.message); t.disabled = false; t.textContent = 'Draft cover letter'; }
+    return;
+  }
+  if (t.dataset.copy) { await navigator.clipboard.writeText(findJob(t.dataset.copy).my.coverLetter); toast('Cover letter copied'); }
+});
+
+document.addEventListener('change', async (e) => {
+  const t = e.target;
+  if (t.dataset.status) { const job = findJob(t.dataset.status); job.my = await api('/api/status', { id: job.id, status: t.value }); toast('Status: ' + t.value); render(); return; }
+  if (t.dataset.note) { const job = findJob(t.dataset.note); job.my = await api('/api/status', { id: job.id, note: t.value }); toast('Note saved'); return; }
+  if (t.closest('#filters') || t.id === 'sort') render();
+});
+$('#q').addEventListener('input', () => render());
+$('#minScore').addEventListener('input', (e) => { $('#minScoreVal').textContent = e.target.value; render(); });
+
+$('#seenBtn').addEventListener('click', async () => { const r = await api('/api/seen', {}); state.data.lastSeenAt = r.lastSeenAt; render(); toast('All marked as seen'); });
+$('#fetchBtn').addEventListener('click', async () => {
+  const b = $('#fetchBtn'); b.disabled = true; b.textContent = state.data.mode === 'github' ? 'Syncing…' : 'Checking… this can take a few minutes';
+  try {
+    const r = await api('/api/fetch', {});
+    toast(state.data.mode === 'github' ? (r.ok ? 'Synced' : 'Sync failed: ' + r.message) : `${r.matches} new matches, ${r.filtered} filtered out`);
+  } catch (err) { toast(err.message); }
+  await load();
+});
+
+load().catch((e) => { $('#list').innerHTML = `<p class="empty">Could not load jobs: ${esc(e.message)}. Is the server running (npm start)?</p>`; });
+setInterval(() => { if (!document.querySelector('.detail textarea:focus')) load(); }, 60000);
+</script>
+</body>
+</html>
