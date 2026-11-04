@@ -175,6 +175,9 @@ nav.tabs button[aria-selected="true"] .n { background: var(--accent); color: #ff
 .tag.maybe { color: var(--maybe); background: color-mix(in srgb, var(--maybe) 12%, transparent); font-weight: 600; }
 .tag.stop { color: var(--stop); background: color-mix(in srgb, var(--stop) 11%, transparent); font-weight: 600; }
 .tag.mine { background: var(--ink); color: var(--surface); font-weight: 600; text-transform: capitalize; }
+.tag.applied-co { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent); font-weight: 600; cursor: help; }
+.detail .prior { background: color-mix(in srgb, var(--accent) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); border-radius: 10px; padding: 10px 14px; font-size: 15px; }
+.detail .prior b { text-transform: capitalize; }
 .when { display: flex; align-items: center; gap: 14px; color: var(--faint); font-size: 13px; text-align: right; white-space: nowrap; }
 .when div { display: grid; gap: 2px; }
 .when b { color: var(--muted); font-weight: 600; }
@@ -323,6 +326,25 @@ function salaryText(s) {
 }
 
 const inCountry = (j) => !state.country || j.country === state.country;
+
+// "Applied here" badge: group your applications by company, ignoring legal suffixes and punctuation,
+// so "SIXT SE" and "Sixt" count as the same employer.
+const APPLIED = ['applied', 'interview', 'offer', 'rejected'];
+const companyKey = (c) => String(c || '').toLowerCase()
+  .replace(/\b(gmbh|ag|se|kg|kgaa|mbh|co|inc|ltd|llc|plc|bv|b\.v\.|nv|n\.v\.|sa|s\.a\.|srl|oy|ab|as|group|holding|deutschland|germany)\b/g, '')
+  .replace(/[^a-z0-9äöüß]+/g, '');
+function buildAppliedIndex(jobs) {
+  const idx = new Map();
+  for (const j of jobs) {
+    if (!APPLIED.includes(j.my?.status)) continue;
+    const k = companyKey(j.company);
+    if (!k) continue;
+    if (!idx.has(k)) idx.set(k, []);
+    idx.get(k).push(j);
+  }
+  return idx;
+}
+const appliedElsewhere = (j) => (state.appliedAt?.get(companyKey(j.company)) || []).filter((o) => o.id !== j.id);
 const countryTitle = (c) => !c ? 'Jobs across all countries' : c === 'Remote' ? 'Remote jobs' : c === 'Other' || c === 'Unknown' ? 'Jobs elsewhere' : `Jobs in ${c}`;
 
 // Pills for the biggest countries in the current tab (plus Remote), everything else in a menu.
@@ -353,6 +375,7 @@ function render() {
   const d = state.data;
   const allJobs = d.jobs;
   const jobs = allJobs.filter(inCountry);
+  state.appliedAt = buildAppliedIndex(allJobs); // across all countries — same employer, any office
   $('#boardTitle').textContent = countryTitle(state.country);
   document.title = 'Job radar — ' + (state.country || 'all countries');
   const newCount = jobs.filter(isNew).length;
@@ -453,6 +476,8 @@ function rowHtml(j) {
   const scoreVal = j.state === 'filtered' ? '✕' : j.state === 'pending' ? '…' : v.score ?? '–';
   const relocCls = { yes: 'go', likely: 'maybe', no: 'stop' }[v.relocation] || '';
   const tags = [];
+  const prior = appliedElsewhere(j);
+  if (prior.length) tags.push(`<span class="tag applied-co" title="${esc('You applied for: ' + prior.map((o) => `${o.title} (${o.my.status})`).join('; '))}">✓ Applied here${prior.length > 1 ? ' ×' + prior.length : ''}</span>`);
   if (isClosed(j)) tags.push(`<span class="tag stop" title="${esc(j.closedReason || 'You marked this posting as gone')}">Closed${j.closedAt ? ' ' + esc(new Date(j.closedAt).toLocaleDateString()) : ''}</span>`);
   if (j.state === 'filtered') tags.push(`<span class="tag stop">${esc(j.filterReason)}</span>`);
   if (v.relocation && j.state !== 'filtered') tags.push(`<span class="tag ${relocCls}">Relocation ${esc(v.relocation)}</span>`);
@@ -485,7 +510,9 @@ function detailHtml(j) {
   const v = j.verdict || {};
   const my = j.my || {};
   const also = (j.alsoOn || []).map((s) => { const [src, url] = s.split('|'); return `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(src)}</a>`; }).join(', ');
+  const prior = appliedElsewhere(j);
   return `<div class="detail">
+    ${prior.length ? `<div class="prior"><h3>Already applied at ${esc(j.company)}</h3>${prior.map((o) => `${esc(o.title)} — <b>${esc(o.my.status)}</b>${o.my.appliedAt ? ` on ${esc(new Date(o.my.appliedAt).toLocaleDateString())}` : ''}`).join('<br>')}</div>` : ''}
     <div class="actions">
       <a class="btn primary" href="${esc(j.url)}" target="_blank" rel="noopener">Open posting ↗</a>
       <button class="btn" data-act="saved" data-id="${esc(j.id)}">${my.status === 'saved' ? '★ Saved' : '☆ Save'}</button>
