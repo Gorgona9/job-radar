@@ -234,6 +234,7 @@ nav.tabs button[aria-selected="true"] .n { background: var(--accent); color: #ff
 
 /* ---------- Run log ---------- */
 .runs-wrap { overflow-x: auto; margin-top: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-sm); }
+.more { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 18px 0 4px; color: var(--muted); font-size: 14px; }
 .runs table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .runs th { position: sticky; top: 0; background: var(--surface-2); color: var(--faint); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
 .runs th, .runs td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
@@ -314,7 +315,7 @@ const REGIONS = [
   { id: '', label: 'Everywhere', hint: 'All jobs' },
   { id: 'abroad', label: 'Abroad', hint: 'Relocation & visa' },
   { id: 'armenia', label: 'Armenia', hint: 'Yerevan & elsewhere, no move' },
-  { id: 'remote', label: 'Remote', hint: 'Open to Armenia' },
+  { id: 'remote', label: 'Remote', hint: 'Open to Armenia, any company' },
 ];
 const ROLE_NAMES = { backend: 'Backend', frontend: 'Frontend', fullstack: 'Full stack' };
 const TOP_COUNTRIES = 7;
@@ -333,9 +334,23 @@ async function api(path, body) {
   return json;
 }
 
+// The list comes without descriptions (that's most of the data); a job's description is fetched when you open it.
+// Auto-refresh sends the version it has and gets "unchanged" back when nothing happened.
+const PAGE = 50;
+state.limit = PAGE;
+state.descs = new Map();
 async function load() {
-  state.data = await api('/api/jobs');
+  const r = await api('/api/jobs' + (state.data?.version ? '?v=' + encodeURIComponent(state.data.version) : ''));
+  if (r.unchanged) return;
+  state.data = r;
   render();
+}
+async function loadDescription(id) {
+  if (state.descs.has(id)) return;
+  state.descs.set(id, null); // loading
+  try { state.descs.set(id, (await api('/api/job?id=' + encodeURIComponent(id))).description); }
+  catch { state.descs.delete(id); }
+  if (state.open.has(id)) render();
 }
 
 const isDismissed = (j) => j.my?.status === 'dismissed';
@@ -360,7 +375,7 @@ function salaryText(s) {
   return s.min && s.max && s.min !== s.max ? `${k(s.min)}–${k(s.max)}` : k(s.min || s.max);
 }
 
-const inRegion = (j) => !state.region || j.region === state.region;
+const inRegion = (j) => !state.region || j.regions?.includes(state.region);
 // Countries only narrow down "Abroad" / "Everywhere" — Armenia and Remote have no country choice.
 const countryApplies = () => state.region === '' || state.region === 'abroad';
 const inCountry = (j) => !state.country || !countryApplies() || j.country === state.country;
@@ -397,7 +412,7 @@ function boardTitle() {
 
 function renderRegions(allJobs, tab) {
   const counts = { '': 0, abroad: 0, armenia: 0, remote: 0 };
-  for (const j of allJobs) if (inRole(j) && (!tab?.test || tab.test(j))) { counts[''] += 1; counts[j.region] = (counts[j.region] || 0) + 1; }
+  for (const j of allJobs) if (inRole(j) && (!tab?.test || tab.test(j))) { counts[''] += 1; for (const r of j.regions || []) counts[r] += 1; }
   $('#regions').innerHTML = REGIONS.map((r) => `<button type="button" data-region="${r.id}" aria-pressed="${state.region === r.id}"><b>${r.label}<span class="n">${counts[r.id] || 0}</span></b><small>${r.hint}</small></button>`).join('');
 }
 
@@ -501,7 +516,7 @@ function render() {
       if ((j.verdict.score ?? 0) < min) return false;
     }
     if (q) {
-      const hay = [j.title, j.company, j.location, j.country, j.verdict?.summary, ...(j.verdict?.matched_skills || []), j.description?.slice(0, 3000)].join(' ').toLowerCase();
+      const hay = [j.title, j.company, j.location, j.country, j.verdict?.summary, ...(j.verdict?.matched_skills || []), ...(j.tags || []), state.descs.get(j.id)?.slice(0, 3000)].join(' ').toLowerCase();
       if (!q.split(/\s+/).every((w) => hay.includes(w))) return false;
     }
     return true;
@@ -511,7 +526,10 @@ function render() {
     : sort === 'posted' ? String(b.postedAt || '').localeCompare(String(a.postedAt || ''))
     : String(b.foundAt).localeCompare(String(a.foundAt)) || (b.verdict?.score ?? 0) - (a.verdict?.score ?? 0));
 
-  $('#countLine').textContent = `${list.length} job${list.length === 1 ? '' : 's'}`;
+  // Show the list 50 at a time; any change of tab or filter starts again from the top.
+  const listKey = [state.tab, state.region, state.role, state.country, q, verdicts, min, src, sort].join('|');
+  if (listKey !== state.listKey) { state.listKey = listKey; state.limit = PAGE; }
+  $('#countLine').textContent = `${list.length} job${list.length === 1 ? '' : 's'}${list.length > state.limit ? ` · showing ${state.limit}` : ''}`;
   if (!list.length) {
     const msg = {
       new: allJobs.length ? 'Nothing new since your last visit. Older matches are under All matches.' : 'No jobs yet. Press “Check for new jobs” to run the first search.',
@@ -525,13 +543,15 @@ function render() {
   }
 
   let html = '', lastDay = '';
-  for (const j of list) {
+  for (const j of list.slice(0, state.limit)) {
     if (sort === 'found') {
       const day = dayLabel(j.foundAt);
       if (day !== lastDay) { html += `<h2 class="day">${esc(day)}</h2>`; lastDay = day; }
     }
     html += rowHtml(j);
   }
+  const left = list.length - state.limit;
+  if (left > 0) html += `<div class="more"><button class="btn" data-more>Show ${Math.min(PAGE, left)} more</button><span>${left} not shown yet</span></div>`;
   $('#list').innerHTML = html;
 }
 
@@ -553,11 +573,12 @@ function rowHtml(j) {
   if (isClosed(j)) tags.push(`<span class="tag stop" title="${esc(j.closedReason || 'You marked this posting as gone')}">Closed${j.closedAt ? ' ' + esc(new Date(j.closedAt).toLocaleDateString()) : ''}</span>`);
   if (j.state === 'filtered') tags.push(`<span class="tag stop">${esc(j.filterReason)}</span>`);
   if (j.role && j.role !== 'other') tags.push(`<span class="tag role">${ROLE_NAMES[j.role]}</span>`);
-  if (v.relocation && j.state !== 'filtered' && j.region !== 'armenia') tags.push(`<span class="tag ${relocCls}">${j.region === 'remote' ? 'Open to Armenia' : 'Relocation'} ${esc(v.relocation)}</span>`);
+  const inArmenia = j.regions?.includes('armenia'), isRemote = j.regions?.includes('remote');
+  if (v.relocation && j.state !== 'filtered' && !inArmenia) tags.push(`<span class="tag ${relocCls}">${isRemote ? 'Open to Armenia' : 'Relocation'} ${esc(v.relocation)}</span>`);
   if (v.knownSponsor) tags.push('<span class="tag go">Known sponsor</span>');
   if (v.german && v.german !== 'none') tags.push(`<span class="tag">German ${v.german === 'nice' ? 'a plus' : 'required'}</span>`);
   const sal = salaryText(v.salary);
-  const belowBlueCard = v.blueCard === 'below' && j.region === 'abroad'; // only matters when moving to the EU
+  const belowBlueCard = v.blueCard === 'below' && j.regions?.includes('abroad'); // only matters when moving to the EU
   if (sal) tags.push(`<span class="tag ${belowBlueCard ? 'stop' : ''}">${sal}${belowBlueCard ? ' below Blue Card' : ''}</span>`);
   if (v.work_mode && v.work_mode !== 'unknown') tags.push(`<span class="tag">${esc(v.work_mode)}</span>`);
   if (j.my?.status && !['new', 'closed'].includes(j.my.status)) tags.push(`<span class="tag mine">${esc(j.my.status)}</span>`);
@@ -605,7 +626,9 @@ function detailHtml(j) {
     </div>
     <label class="notes"><h3>Notes</h3><textarea data-note="${esc(j.id)}" placeholder="Recruiter name, salary talk, interview dates…">${esc(my.note || '')}</textarea></label>
     ${my.coverLetter ? `<div><h3>Cover letter <button class="btn" data-copy="${esc(j.id)}">Copy</button></h3><div class="letter">${esc(my.coverLetter)}</div></div>` : ''}
-    ${j.description ? `<details><summary>Full description</summary><div class="desc">${esc(j.description)}</div></details>` : '<p class="hint">Only title and company are known for this one — open the posting to check relocation.</p>'}
+    ${!j.hasDescription ? '<p class="hint">Only title and company are known for this one — open the posting to check relocation.</p>'
+      : state.descs.get(j.id) ? `<details><summary>Full description</summary><div class="desc">${esc(state.descs.get(j.id))}</div></details>`
+      : '<p class="hint">Loading the description…</p>'}
   </div>`;
 }
 
@@ -621,14 +644,16 @@ function renderRuns() {
 function findJob(id) { return state.data.jobs.find((j) => j.id === id); }
 
 document.addEventListener('click', async (e) => {
-  const t = e.target.closest('[data-tab],[data-toggle],[data-act],[data-letter],[data-copy],[data-country],[data-region]');
+  const t = e.target.closest('[data-tab],[data-toggle],[data-act],[data-letter],[data-copy],[data-country],[data-region],[data-more]');
   if (!t) return;
   if ('country' in t.dataset) { setCountry(t.dataset.country); return; }
   if ('region' in t.dataset) { setRegion(t.dataset.region); return; }
+  if ('more' in t.dataset) { state.limit += PAGE; render(); return; }
   if (t.dataset.tab) { state.tab = t.dataset.tab; render(); return; }
   if (t.dataset.toggle) {
     const id = t.dataset.toggle;
     state.open.has(id) ? state.open.delete(id) : state.open.add(id);
+    if (state.open.has(id) && findJob(id)?.hasDescription) loadDescription(id);
     render(); document.querySelector(`[data-toggle="${CSS.escape(id)}"]`)?.focus(); return;
   }
   if (t.dataset.act) {

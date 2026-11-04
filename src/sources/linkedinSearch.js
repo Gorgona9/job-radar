@@ -41,51 +41,66 @@ function parseDetail(html) {
   return [stripHtml(end > 0 ? rest.slice(0, end) : rest.slice(0, 20000)), criteria].filter(Boolean).join('\n\n');
 }
 
+// Search groups run in order, each with its own queries and its own budget of detail pages, so jobs
+// abroad can't use up the budget meant for Armenia or remote. If LinkedIn rate-limits, everything stops.
+// Older configs with plain `queries` / `locations` still work as one group.
 export async function fetchLinkedinSearch(cfg, config) {
   const titleOk = new RegExp(config.titleMustMatch, 'i');
   const titleBad = new RegExp(config.titleExclude, 'i');
   const known = config._knownIds || new Set();
   const days = cfg.daysBack ?? 7;
+  const groups = cfg.searches || [{ locations: cfg.locations || ['Germany'], queries: cfg.queries || ['java developer'], maxDetails: cfg.maxDetails, remoteOnly: cfg.remoteOnly }];
   const jobs = new Map(), errors = [];
-  let details = 0;
+  let stopped = false;
 
-  outer: for (const location of cfg.locations || ['Germany']) {
-    for (const keywords of cfg.queries || ['java developer']) {
-      for (let page = 0; page < (cfg.pages ?? 1); page++) {
-        const qs = new URLSearchParams({ keywords, location, f_TPR: `r${days * 86400}`, start: String(page * 10) });
-        if (cfg.remoteOnly || /remote|worldwide/i.test(location)) qs.set('f_WT', '2');
-        let cards;
-        try { cards = parseCards(await get(`${BASE}/seeMoreJobPostings/search?${qs}`)); }
-        catch (e) { errors.push(`linkedin "${keywords}" in ${location}: ${e.message}`); if (e.stop) break outer; break; }
-        for (const c of cards) {
-          if (jobs.has(c.id)) continue;
-          jobs.set(c.id, {
-            source: 'linkedin', sourceId: c.id,
-            title: c.title, company: c.company, location: c.location,
-            url: `https://www.linkedin.com/jobs/view/${c.id}/`,
-            description: '', postedAt: c.postedAt ? new Date(c.postedAt).toISOString() : null,
-            remote: /remote/i.test(c.location) || qs.has('f_WT') || null, tags: [`LinkedIn: ${keywords}`],
-            shortDescription: true,
-          });
+  for (const g of groups) {
+    if (stopped) break;
+    const mine = [];
+    outer: for (const location of g.locations || ['Germany']) {
+      for (const keywords of g.queries || cfg.queries || ['java developer']) {
+        for (let page = 0; page < (g.pages ?? cfg.pages ?? 1); page++) {
+          const qs = new URLSearchParams({ keywords, location, f_TPR: `r${days * 86400}`, start: String(page * 10) });
+          // A plain "Armenia" means the city in Colombia to LinkedIn; geoIds pin a location to the right country.
+          if (g.geoIds?.[location]) qs.set('geoId', g.geoIds[location]);
+          if (g.remoteOnly || /remote|worldwide/i.test(location)) qs.set('f_WT', '2');
+          let cards;
+          try { cards = parseCards(await get(`${BASE}/seeMoreJobPostings/search?${qs}`)); }
+          catch (e) { errors.push(`linkedin "${keywords}" in ${location}: ${e.message}`); if (e.stop) { stopped = true; break outer; } break; }
+          for (const c of cards) {
+            if (jobs.has(c.id)) continue;
+            const remote = qs.has('f_WT') || /remote/i.test(c.location);
+            const job = {
+              source: 'linkedin', sourceId: c.id,
+              title: c.title, company: c.company,
+              // A remote search in "Armenia" means remote work from Armenia; say so in the location.
+              location: remote && !/remote/i.test(c.location) ? `${c.location || location} (remote)` : c.location,
+              url: `https://www.linkedin.com/jobs/view/${c.id}/`,
+              description: '', postedAt: c.postedAt ? new Date(c.postedAt).toISOString() : null,
+              remote: remote || null, tags: [`LinkedIn: ${keywords}`],
+              shortDescription: true,
+            };
+            jobs.set(c.id, job);
+            mine.push(job);
+          }
+          await sleep(cfg.delayMs ?? 2500);
+          if (cards.length < 10) break;
         }
-        await sleep(cfg.delayMs ?? 2500);
-        if (cards.length < 10) break;
       }
     }
+    // Full text only for new developer titles, capped per group.
+    let details = 0;
+    for (const job of mine) {
+      if (stopped || details >= (g.maxDetails ?? 40)) break;
+      if (known.has(`linkedin:${job.sourceId}`) || !titleOk.test(job.title) || titleBad.test(job.title)) continue;
+      try {
+        const desc = parseDetail(await get(`${BASE}/jobPosting/${job.sourceId}`));
+        if (desc) { job.description = desc; job.shortDescription = false; }
+        details++;
+        await sleep(cfg.delayMs ?? 2500);
+      } catch (e) { errors.push(`linkedin detail ${job.sourceId}: ${e.message}`); if (e.stop) stopped = true; }
+    }
   }
-
-  // Full text only for new developer titles, capped per run.
-  for (const job of jobs.values()) {
-    if (details >= (cfg.maxDetails ?? 60)) break;
-    if (known.has(`linkedin:${job.sourceId}`) || !titleOk.test(job.title) || titleBad.test(job.title)) continue;
-    try {
-      const desc = parseDetail(await get(`${BASE}/jobPosting/${job.sourceId}`));
-      if (desc) { job.description = desc; job.shortDescription = false; }
-      details++;
-      await sleep(cfg.delayMs ?? 2500);
-    } catch (e) { errors.push(`linkedin detail ${job.sourceId}: ${e.message}`); if (e.stop) break; }
-  }
-  // Only hand over postings with full text. The rest are either not developer roles, already
-  // stored, or over this run's cap — those come back in later runs (the search covers `daysBack` days).
-  return { jobs: [...jobs.values()].filter((j) => j.description), errors };
+  // Only hand over postings with full text, plus ones already stored (so they count as still online).
+  // The rest are not developer roles or over this run's cap — they come back in later runs.
+  return { jobs: [...jobs.values()].filter((j) => j.description || known.has(`linkedin:${j.sourceId}`)), errors };
 }

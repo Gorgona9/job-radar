@@ -1,6 +1,6 @@
 import { RELOCATION_POSITIVE, germanRequiredHeuristic } from './filter.js';
 import { sleep } from './util.js';
-import { jobCountry, jobRegion } from './countries.js';
+import { jobCountry, jobRegions } from './countries.js';
 
 const SYSTEM = `You screen job postings for one specific candidate. She lives in Yerevan, Armenia, and has NO EU work permit. A job abroad (Germany, other EU countries, etc.) only works if the employer hires from abroad (EU Blue Card, visa sponsorship, relocation). A job in Armenia works without any move, and a remote job works if it is open to people living in Armenia. Her profile is below.
 
@@ -114,14 +114,14 @@ export function finalize(job, verdict, config) {
   const known = config.knownSponsors.some((c) => job.company && job.company.toLowerCase().includes(c.toLowerCase()));
   let relocation = verdict.relocation;
   let evidence = verdict.relocation_evidence;
-  const region = jobRegion({ ...job, verdict }, jobCountry({ ...job, verdict }));
+  const regions = jobRegions({ ...job, verdict }, jobCountry({ ...job, verdict }));
   // A job in Armenia needs no move. Models tend to read "no relocation needed" as relocation "no", so fix it here.
-  if (region === 'armenia' && relocation !== 'yes') { relocation = 'yes'; evidence = 'In Armenia — no move needed'; }
+  if (regions.includes('armenia') && relocation !== 'yes') { relocation = 'yes'; evidence = 'In Armenia — no move needed'; }
   if (known && (relocation === 'unclear' || relocation === 'likely')) relocation = 'likely';
   const t = config.scoring.blueCardMinEur;
   const top = salary?.max || salary?.min;
   // The Blue Card salary line only matters when she moves to the EU, not for jobs in Armenia or remote.
-  const blueCard = region !== 'abroad' || !top ? 'unknown' : (salary.min || top) >= t ? 'ok' : top < t ? 'below' : 'unknown';
+  const blueCard = !regions.includes('abroad') || !top ? 'unknown' : (salary.min || top) >= t ? 'ok' : top < t ? 'below' : 'unknown';
   const score = Math.round(Math.max(0, Math.min(100, (verdict.fit ?? 50) * (RELOC_WEIGHT[relocation] ?? 0.6) * (GERMAN_WEIGHT[verdict.german] ?? 1) * (blueCard === 'below' ? 0.7 : 1) + (known ? 8 : 0))));
   return { ...verdict, relocation, relocation_evidence: evidence, knownSponsor: known, salary, blueCard, score };
 }

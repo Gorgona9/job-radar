@@ -484,6 +484,26 @@
       "maxDetails": 40,
       "delayMs": 1500
     },
+    "workable": {
+      "enabled": true,
+      "locations": [
+        "Armenia"
+      ],
+      "searchTerms": [
+        "java",
+        "full stack",
+        "fullstack",
+        "backend",
+        "frontend",
+        "developer",
+        "software engineer",
+        "vue",
+        "kotlin",
+        "typescript"
+      ],
+      "maxPages": 2,
+      "daysBack": 30
+    },
     "hh": {
       "enabled": true,
       "areas": [
@@ -508,29 +528,80 @@
     },
     "linkedinSearch": {
       "enabled": true,
-      "queries": [
-        "java developer visa sponsorship",
-        "full stack developer relocation",
-        "java developer"
-      ],
-      "locations": [
-        "Armenia",
-        "Germany",
-        "Netherlands",
-        "United Kingdom",
-        "Poland",
-        "Switzerland",
-        "Austria",
-        "Estonia",
-        "Latvia",
-        "Ireland",
-        "Portugal",
-        "Spain",
-        "Worldwide"
+      "searches": [
+        {
+          "name": "remote from Armenia",
+          "locations": [
+            "Armenia"
+          ],
+          "remoteOnly": true,
+          "queries": [
+            "java developer",
+            "full stack developer",
+            "backend developer",
+            "software engineer java"
+          ],
+          "maxDetails": 30,
+          "geoIds": {
+            "Armenia": "103030111"
+          }
+        },
+        {
+          "name": "Armenia",
+          "locations": [
+            "Armenia"
+          ],
+          "queries": [
+            "java developer",
+            "full stack developer",
+            "backend developer",
+            "software engineer java",
+            "frontend developer",
+            "vue developer"
+          ],
+          "maxDetails": 35,
+          "geoIds": {
+            "Armenia": "103030111"
+          }
+        },
+        {
+          "name": "remote worldwide",
+          "locations": [
+            "Worldwide",
+            "EMEA"
+          ],
+          "remoteOnly": true,
+          "queries": [
+            "java developer",
+            "full stack developer"
+          ],
+          "maxDetails": 20
+        },
+        {
+          "name": "abroad",
+          "locations": [
+            "Germany",
+            "Netherlands",
+            "United Kingdom",
+            "Poland",
+            "Switzerland",
+            "Austria",
+            "Estonia",
+            "Latvia",
+            "Ireland",
+            "Portugal",
+            "Spain"
+          ],
+          "queries": [
+            "java developer visa sponsorship",
+            "full stack developer relocation",
+            "java developer"
+          ],
+          "maxDetails": 45
+        }
       ],
       "daysBack": 7,
       "pages": 1,
-      "maxDetails": 60,
       "delayMs": 2500
     },
     "linkedinEmail": {

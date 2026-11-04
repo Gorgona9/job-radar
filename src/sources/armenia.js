@@ -138,3 +138,53 @@ export async function fetchHh(cfg, config) {
   }
   return { jobs: [...jobs.values()], errors };
 }
+
+// Workable's public job search (jobs.workable.com) — thousands of companies, many with offices or remote
+// roles in Armenia. Its robots.txt allows the API and AI use (Content-Signal ai-input=yes).
+// Searches by location; a job marked "remote" there is remote work from that country.
+export async function fetchWorkable(cfg, config) {
+  const titleOk = new RegExp(config.titleMustMatch, 'i');
+  const titleBad = new RegExp(config.titleExclude, 'i');
+  const jobs = new Map(), errors = [];
+  const seen = new Set(); // the same job is often listed once per city
+  const maxAgeMs = (cfg.daysBack ?? 30) * 864e5;
+  outer: for (const location of cfg.locations || ['Armenia']) {
+    for (const query of cfg.searchTerms || config.searchTerms) {
+      let token = null;
+      for (let page = 0; page < (cfg.maxPages ?? 2); page++) {
+        const qs = new URLSearchParams({ query, location });
+        if (token) qs.set('pageToken', token);
+        let body;
+        try {
+          const res = await fetch(`https://jobs.workable.com/api/v1/jobs?${qs}`, { headers: { 'user-agent': UA, accept: 'application/json' } });
+          if (!res.ok) { const e = new Error(`${res.status} ${res.statusText}`); e.stop = [403, 429].includes(res.status); throw e; }
+          body = await res.json();
+        } catch (e) { errors.push(`workable "${query}" in ${location}: ${e.message}`); if (e.stop) break outer; break; }
+        for (const j of body.jobs || []) {
+          if (jobs.has(j.id) || !titleOk.test(j.title || '') || titleBad.test(j.title || '')) continue;
+          if (j.created && Date.now() - Date.parse(j.created) > maxAgeMs) continue;
+          const twin = `${j.company?.title}|${j.title}`.toLowerCase();
+          if (seen.has(twin)) continue;
+          seen.add(twin);
+          const l = j.location || {};
+          const place = [l.city, l.countryName].filter(Boolean).join(', ') || location;
+          const remote = j.workplace === 'remote';
+          jobs.set(j.id, {
+            source: 'workable', sourceId: j.id,
+            title: j.title, company: j.company?.title || '',
+            location: remote ? `${place} (remote)` : place,
+            url: j.url,
+            description: stripHtml([j.description, j.requirementsSection && '<p>Requirements:</p>' + j.requirementsSection, j.benefitsSection && '<p>Benefits:</p>' + j.benefitsSection].filter(Boolean).join('')),
+            postedAt: j.created || null,
+            remote: remote || null,
+            tags: ['Workable', j.workplace, j.employmentType].filter(Boolean),
+          });
+        }
+        token = body.nextPageToken;
+        await sleep(cfg.delayMs ?? 800);
+        if (!token) break;
+      }
+    }
+  }
+  return { jobs: [...jobs.values()], errors };
+}

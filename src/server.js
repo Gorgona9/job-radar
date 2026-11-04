@@ -3,11 +3,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import crypto from 'node:crypto';
+import zlib from 'node:zlib';
 import { ROOT, ON_RAILWAY, DATA_DIR, loadConfig, loadProfile } from './util.js';
-import { loadJobs, loadStatus, saveStatus, updateJobStatus } from './store.js';
+import { JOBS, STATUS, loadJobs, loadStatus, saveStatus, updateJobStatus } from './store.js';
 import { runFetch, isRunning } from './fetch.js';
 import { callClaude, hasApiKey } from './scorer.js';
-import { jobCountry, jobRegion } from './countries.js';
+import { jobCountry, jobRegions } from './countries.js';
 import { jobRole } from './roles.js';
 
 const config = loadConfig();
@@ -40,10 +41,39 @@ function authorized(req) {
   return crypto.timingSafeEqual(a, b);
 }
 
+// Compressed when the browser accepts it — the job list shrinks to a fraction of its size.
 function send(res, status, body, type = 'application/json') {
-  res.writeHead(status, { 'content-type': type, 'cache-control': 'no-store' });
-  res.end(type === 'application/json' ? JSON.stringify(body) : body);
+  let data = type === 'application/json' ? JSON.stringify(body) : body;
+  const headers = { 'content-type': type, 'cache-control': 'no-store' };
+  if (data.length > 2048 && /gzip/.test(res.req?.headers['accept-encoding'] || '')) {
+    data = zlib.gzipSync(data, { level: 6 });
+    headers['content-encoding'] = 'gzip';
+    headers.vary = 'accept-encoding';
+  }
+  res.writeHead(status, headers);
+  res.end(data);
 }
+
+const mtime = (f) => { try { return fs.statSync(f).mtimeMs; } catch { return 0; } };
+
+// The job list without descriptions (they are most of the data — fetched one at a time when you open a job).
+// Country / section / role are worked out once per change of jobs.json, not on every request.
+let listCache = { key: null };
+function jobList() {
+  const key = mtime(JOBS);
+  if (listCache.key !== key) {
+    const db = loadJobs();
+    const jobs = Object.values(db.jobs).map((j) => {
+      const country = jobCountry(j);
+      const { description, ...rest } = j;
+      return { ...rest, hasDescription: Boolean(description), country, regions: jobRegions(j, country), role: jobRole(j) };
+    });
+    listCache = { key, jobs, runs: db.runs.slice(-60) };
+  }
+  return listCache;
+}
+// Changes whenever anything on the page would change, so the auto-refresh can skip unchanged data.
+const dataVersion = () => [mtime(JOBS), mtime(STATUS), isRunning(), lastSync?.at || ''].join('-');
 
 async function readBody(req, limit = 20e6) {
   let data = '';
@@ -103,17 +133,21 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, fs.readFileSync(path.join(ROOT, 'public', 'index.html')), 'text/html; charset=utf-8');
     }
     if (req.method === 'GET' && url.pathname === '/api/jobs') {
-      const db = loadJobs();
+      const version = dataVersion();
+      if (url.searchParams.get('v') === version) return send(res, 200, { unchanged: true, version });
+      const { jobs: list, runs } = jobList();
       const st = loadStatus();
-      const jobs = Object.values(db.jobs).map((j) => {
-        const country = jobCountry(j);
-        return { ...j, country, region: jobRegion(j, country), role: jobRole(j), my: st.jobs[j.id] || null };
-      });
+      const jobs = list.map((j) => ({ ...j, my: st.jobs[j.id] || null }));
       return send(res, 200, {
-        jobs, runs: db.runs.slice(-60), lastSeenAt: st.lastSeenAt,
+        version, jobs, runs, lastSeenAt: st.lastSeenAt,
         mode: MODE, running: isRunning(), lastSync, aiEnabled: hasApiKey(),
         scheduleEveryHours: config.scheduleEveryHours,
       });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/job') {
+      const job = loadJobs().jobs[url.searchParams.get('id')];
+      if (!job) return send(res, 404, { error: 'Job not found' });
+      return send(res, 200, { id: job.id, description: job.description || '' });
     }
     if (req.method === 'POST' && url.pathname === '/api/status') {
       const { id, ...patch } = await readBody(req);

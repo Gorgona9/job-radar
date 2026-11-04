@@ -82,10 +82,12 @@ export function jobCountry(job) {
   return loc ? 'Other' : 'Unknown';
 }
 
-// Which section of the dashboard a job belongs to: a job in Armenia (no move needed), a remote job,
-// or a job abroad that needs relocation. A remote job at an Armenian company counts as Armenia.
-export function jobRegion(job, country = jobCountry(job)) {
-  if (country === 'Armenia' || ENTRIES.some((e) => e.country === 'Armenia' && e.re.test(job.location || ''))) return 'armenia';
-  if (country === 'Remote' || job.verdict?.work_mode === 'remote' || job.remote === true) return 'remote';
-  return 'abroad';
+// Which sections of the dashboard a job shows in. "armenia" = based in Armenia (no move needed),
+// "remote" = fully remote; a remote job based in Armenia is in both. Everything else is "abroad".
+const IN_ARMENIA = ENTRIES.filter((e) => e.country === 'Armenia');
+export function jobRegions(job, country = jobCountry(job)) {
+  const out = [];
+  if (country === 'Armenia' || IN_ARMENIA.some((e) => e.re.test(job.location || ''))) out.push('armenia');
+  if (country === 'Remote' || job.verdict?.work_mode === 'remote' || job.remote === true) out.push('remote');
+  return out.length ? out : ['abroad'];
 }

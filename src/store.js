@@ -3,8 +3,8 @@ import { DATA_DIR, readJson, writeJsonAtomic } from './util.js';
 
 // jobs.json   — everything the radar has ever found (written only by the fetcher; committed in GitHub mode)
 // status.json — your actions: saved / applied / notes / cover letters (written only by the dashboard; stays on your machine)
-const JOBS = path.join(DATA_DIR, 'jobs.json');
-const STATUS = path.join(DATA_DIR, 'status.json');
+export const JOBS = path.join(DATA_DIR, 'jobs.json');
+export const STATUS = path.join(DATA_DIR, 'status.json');
 
 export function loadJobs() {
   return readJson(JOBS, { jobs: {}, runs: [] });
