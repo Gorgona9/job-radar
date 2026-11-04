@@ -51,7 +51,7 @@ async function coverLetter(id) {
   if (!job) throw new Error('Job not found');
   if (!hasApiKey()) throw new Error('Add ANTHROPIC_API_KEY to .env to draft cover letters');
   const user = `Write the cover letter for this job.\n\nTitle: ${job.title}\nCompany: ${job.company}\nLocation: ${job.location}\nLink: ${job.url}\n\n${job.description || '(Only title and company are known — keep the letter general about the role type and ask for details where needed.)'}`;
-  const text = await callClaude({ model: config.scoring.coverLetterModel || config.scoring.model, system: COVER_SYSTEM + loadProfile(), user, maxTokens: 1200 });
+  const text = await callClaude({ model: config.scoring.coverLetterModel || config.scoring.model, system: COVER_SYSTEM + loadProfile(), user, maxTokens: 4000 });
   updateJobStatus(id, { coverLetter: text.trim() });
   return text.trim();
 }

@@ -31,7 +31,9 @@ CANDIDATE PROFILE:
 
 export function hasApiKey() { return Boolean(process.env.ANTHROPIC_API_KEY); }
 
-export async function callClaude({ model, system, user, maxTokens = 800 }) {
+// Current models think before answering by default, and that thinking counts toward max_tokens —
+// leave room for it, or pass thinking: { type: 'disabled' } where the model allows it.
+export async function callClaude({ model, system, user, maxTokens = 2000, thinking }) {
   for (let attempt = 0; attempt < 4; attempt++) {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -40,7 +42,7 @@ export async function callClaude({ model, system, user, maxTokens = 800 }) {
         'x-api-key': process.env.ANTHROPIC_API_KEY,
         'anthropic-version': '2023-06-01',
       },
-      body: JSON.stringify({ model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }] }),
+      body: JSON.stringify({ model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }], ...(thinking ? { thinking } : {}) }),
     });
     if (res.status === 429 || res.status >= 500) { await sleep(2000 * (attempt + 1)); continue; }
     const body = await res.json();
@@ -53,6 +55,8 @@ export async function callClaude({ model, system, user, maxTokens = 800 }) {
       else if (res.status === 403) err.fatal = `Anthropic API refused access: ${msg}`;
       throw err;
     }
+    if (body.stop_reason === 'max_tokens') throw new Error(`Claude answer was cut off at max_tokens (${maxTokens})`);
+    if (body.stop_reason === 'refusal') throw new Error('Claude declined to answer this one');
     return (body.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
   }
   throw new Error('Claude API kept returning 429/5xx');
@@ -67,7 +71,10 @@ function parseJson(text) {
 async function scoreWithClaude(job, profile, config) {
   const desc = job.description ? job.description.slice(0, 7000) : '(no description available — only title, company and location)';
   const user = `Title: ${job.title}\nCompany: ${job.company}\nLocation: ${job.location}${job.remote ? ' (remote)' : ''}\nSource: ${job.source}\nTags: ${(job.tags || []).join(', ')}\n\nDescription:\n${desc}`;
-  const text = await callClaude({ model: config.scoring.model, system: SYSTEM + profile, user });
+  // A short classification doesn't need thinking; Haiku 5.5 allows turning it off at its default effort.
+  // (Other models, e.g. Sonnet 5.5 / Opus 5.5, reject this — set scoring.thinking to null in config then.)
+  const thinking = config.scoring.thinking === undefined ? { type: 'disabled' } : config.scoring.thinking || undefined;
+  const text = await callClaude({ model: config.scoring.model, system: SYSTEM + profile, user, maxTokens: 1500, thinking });
   return { ...parseJson(text), by: 'ai' };
 }
 
