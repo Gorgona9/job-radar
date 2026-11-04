@@ -589,7 +589,9 @@ $('#fetchBtn').addEventListener('click', async () => {
   const b = $('#fetchBtn'); b.disabled = true; b.textContent = state.data.mode === 'github' ? 'Syncing…' : 'Checking… this can take a few minutes';
   try {
     const r = await api('/api/fetch', {});
-    toast(state.data.mode === 'github' ? (r.ok ? 'Synced' : 'Sync failed: ' + r.message) : `${r.matches} new matches, ${r.filtered} filtered out`);
+    toast(state.data.mode === 'github' ? (r.ok ? 'Synced' : 'Sync failed: ' + r.message)
+      : r.started ? 'Search started — new jobs appear here in about 10–15 minutes'
+      : `${r.matches} new matches, ${r.filtered} filtered out`);
   } catch (err) { toast(err.message); }
   await load();
 });

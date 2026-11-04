@@ -2,7 +2,8 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
-import { ROOT, loadConfig, loadProfile } from './util.js';
+import crypto from 'node:crypto';
+import { ROOT, ON_RAILWAY, DATA_DIR, loadConfig, loadProfile } from './util.js';
 import { loadJobs, loadStatus, saveStatus, updateJobStatus } from './store.js';
 import { runFetch, isRunning } from './fetch.js';
 import { callClaude, hasApiKey } from './scorer.js';
@@ -11,16 +12,44 @@ import { jobCountry } from './countries.js';
 const config = loadConfig();
 const PORT = Number(process.env.PORT) || config.port || 4310;
 const MODE = config.mode === 'github' ? 'github' : 'local';
+// On your PC the dashboard only answers this computer; on a server it must listen publicly.
+const HOST = process.env.HOST || (ON_RAILWAY ? '0.0.0.0' : '127.0.0.1');
+const PUBLIC = !['127.0.0.1', 'localhost', '::1'].includes(HOST);
+const PASSWORD = process.env.DASHBOARD_PASSWORD || '';
 let lastSync = null;
+
+// Anyone who finds a public dashboard could read your applications and spend your Anthropic
+// credit on cover letters, so a public server refuses to start without a password.
+if (PUBLIC && PASSWORD.length < 10) {
+  console.error('Refusing to start: the dashboard is public (HOST=' + HOST + ') but DASHBOARD_PASSWORD is missing or shorter than 10 characters.');
+  process.exit(1);
+}
+if (ON_RAILWAY && !process.env.RAILWAY_VOLUME_MOUNT_PATH && !process.env.DATA_DIR) {
+  console.warn('WARNING: no Railway volume attached — statuses, notes and new jobs will be lost on the next deploy. Attach a volume to this service.');
+}
+
+// Browser login (HTTP Basic auth over Railway's HTTPS). Any username works; only the password is checked.
+function authorized(req) {
+  if (!PASSWORD) return true;
+  const m = /^Basic (.+)$/.exec(req.headers.authorization || '');
+  if (!m) return false;
+  const given = Buffer.from(m[1], 'base64').toString('utf8').split(':').slice(1).join(':');
+  const a = crypto.createHash('sha256').update(given).digest();
+  const b = crypto.createHash('sha256').update(PASSWORD).digest();
+  return crypto.timingSafeEqual(a, b);
+}
 
 function send(res, status, body, type = 'application/json') {
   res.writeHead(status, { 'content-type': type, 'cache-control': 'no-store' });
   res.end(type === 'application/json' ? JSON.stringify(body) : body);
 }
 
-async function readBody(req) {
+async function readBody(req, limit = 20e6) {
   let data = '';
-  for await (const chunk of req) data += chunk;
+  for await (const chunk of req) {
+    data += chunk;
+    if (data.length > limit) throw new Error('Request too large');
+  }
   return data ? JSON.parse(data) : {};
 }
 
@@ -59,6 +88,16 @@ async function coverLetter(id) {
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost');
+    if (url.pathname === '/healthz') return send(res, 200, { ok: true }); // Railway health check, no data
+    if (!authorized(req)) {
+      res.writeHead(401, { 'www-authenticate': 'Basic realm="Job radar", charset="UTF-8"', 'content-type': 'text/plain' });
+      return res.end('Password required');
+    }
+    // Only the dashboard's own fetch() calls may change things: they send JSON, which a form on
+    // another website can't do without the browser asking this server first (and it won't agree).
+    if (req.method === 'POST' && !/^application\/json\b/.test(req.headers['content-type'] || '')) {
+      return send(res, 415, { error: 'Expected JSON' });
+    }
     if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
       return send(res, 200, fs.readFileSync(path.join(ROOT, 'public', 'index.html')), 'text/html; charset=utf-8');
     }
@@ -87,8 +126,29 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'POST' && url.pathname === '/api/fetch') {
       if (MODE === 'github') return send(res, 200, await gitPull());
+      // A run takes 10+ minutes — longer than a hosting proxy keeps a request open — so on a
+      // server it starts in the background and the dashboard's auto-refresh shows the results.
+      if (PUBLIC) {
+        if (!isRunning()) runFetch({ telegram: true }).catch((e) => console.error('Run failed:', e.message));
+        return send(res, 202, { started: true });
+      }
       const run = await runFetch({ telegram: true });
       return send(res, 200, run);
+    }
+    // One-time move of your statuses/notes/cover letters from your PC (npm run push-status).
+    // Per job, the most recently changed copy wins, so running it twice is harmless.
+    if (req.method === 'POST' && url.pathname === '/api/import-status') {
+      const incoming = await readBody(req);
+      if (!incoming || typeof incoming.jobs !== 'object') return send(res, 400, { error: 'Expected the contents of status.json' });
+      const st = loadStatus();
+      let imported = 0;
+      for (const [id, s] of Object.entries(incoming.jobs)) {
+        const cur = st.jobs[id];
+        if (!cur || String(s.updatedAt || '') > String(cur.updatedAt || '')) { st.jobs[id] = s; imported++; }
+      }
+      if (incoming.lastSeenAt && String(incoming.lastSeenAt) > String(st.lastSeenAt || '')) st.lastSeenAt = incoming.lastSeenAt;
+      saveStatus(st);
+      return send(res, 200, { imported, total: Object.keys(st.jobs).length });
     }
     if (req.method === 'POST' && url.pathname === '/api/cover-letter') {
       const { id } = await readBody(req);
@@ -101,8 +161,8 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, '127.0.0.1', () => {
-  console.log(`Job radar dashboard: http://localhost:${PORT}  (mode: ${MODE})`);
+server.listen(PORT, HOST, () => {
+  console.log(`Job radar dashboard: ${PUBLIC ? `listening on ${HOST}:${PORT}, password required` : `http://localhost:${PORT}`}  (mode: ${MODE}, data: ${DATA_DIR})`);
 });
 
 // Scheduling: in local mode the dashboard process also runs the radar every N hours,

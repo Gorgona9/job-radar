@@ -64,6 +64,25 @@ Set `"mode": "github"` in `config.json` and push the project to a **private** Gi
 
 GitHub Actions (`.github/workflows/job-radar.yml`) then runs every 6 hours, sends Telegram messages and commits `data/jobs.json`. Your local `npm start` just pulls that file ("Sync from GitHub"). Your statuses, notes and cover letters stay in `data/status.json` on your machine (it's in `.gitignore`).
 
+## Hosting on Railway (dashboard online, radar runs there)
+
+On Railway one service does everything: it serves the dashboard on your domain and runs the radar every 6 hours itself. Settings come from `railway.json` (start command, health check).
+
+1. **Create the service.** railway.com → New Project → Deploy from GitHub repo → pick this repo.
+2. **Attach a volume** (service → right-click / ⌘K → *Attach volume*), mount path `/data`. Without it, statuses and new jobs are wiped on every deploy; the log warns if it's missing. On first start the volume gets a copy of `data/jobs.json` from the repo.
+3. **Variables** (service → Variables):
+   - `DASHBOARD_PASSWORD` — at least 10 characters. Required: the server won't start publicly without it. The browser asks for it (any username).
+   - `ANTHROPIC_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, and optionally `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, `IMAP_USER`, `IMAP_PASSWORD`
+   - `DASHBOARD_URL` — your address, e.g. `https://example.com`, used in Telegram messages
+   - Railway sets `PORT`; on Railway the server listens publicly and runs in local mode automatically (override with `HOST` / `RADAR_MODE`).
+4. **Domain.** Service → Settings → Networking → *Custom domain* → enter your domain. Railway shows a DNS target (`something.up.railway.app`) and a verification TXT record. In Namecheap → Domain List → Manage → **Advanced DNS**:
+   - for the main domain (`example.com`): add an **ALIAS Record**, host `@`, value = Railway's target; remove the default `URL Redirect`/parking records for `@`
+   - for `www`: a **CNAME Record**, host `www`, value = the same target (add `www.example.com` in Railway too)
+   - add the **TXT Record** Railway asks for
+   - wait for Railway to show the domain as verified; it then issues the HTTPS certificate itself.
+5. **Move your statuses** (saved/applied/notes/cover letters live only on your PC): add the same `DASHBOARD_PASSWORD` to your local `.env`, then `npm run push-status -- https://example.com`.
+6. **Switch off GitHub Actions** so jobs aren't searched and messaged twice: repo → Actions → job-radar → ⋯ → *Disable workflow* (or `gh workflow disable job-radar.yml`).
+
 ## Data
 
 - `data/jobs.json`: every job ever found, with its verdict.

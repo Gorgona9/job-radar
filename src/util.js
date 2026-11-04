@@ -3,10 +3,29 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-export const DATA_DIR = path.join(ROOT, 'data');
+export const ON_RAILWAY = Boolean(process.env.RAILWAY_ENVIRONMENT);
 
+// Where jobs.json / status.json live. On Railway this must be a volume (Railway sets
+// RAILWAY_VOLUME_MOUNT_PATH when one is attached) — the container's own disk is wiped on every deploy.
+export const DATA_DIR = process.env.DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH || path.join(ROOT, 'data');
+
+// A fresh, empty volume starts from the history committed in the repo, so nothing found so far is lost.
+const REPO_JOBS = path.join(ROOT, 'data', 'jobs.json');
+if (DATA_DIR !== path.join(ROOT, 'data') && !fs.existsSync(path.join(DATA_DIR, 'jobs.json')) && fs.existsSync(REPO_JOBS)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.copyFileSync(REPO_JOBS, path.join(DATA_DIR, 'jobs.json'));
+  console.log(`Seeded ${DATA_DIR}/jobs.json from the repo copy`);
+}
+
+// config.json is shared by your PC and the server; environment variables override the few
+// settings that differ: RADAR_MODE (local | github) and DASHBOARD_URL (link in Telegram messages).
+// On Railway the server runs the radar itself, so mode defaults to "local" there.
 export function loadConfig() {
-  return JSON.parse(fs.readFileSync(path.join(ROOT, 'config.json'), 'utf8'));
+  const config = JSON.parse(fs.readFileSync(path.join(ROOT, 'config.json'), 'utf8'));
+  const mode = process.env.RADAR_MODE || (ON_RAILWAY ? 'local' : null);
+  if (mode) config.mode = mode;
+  if (process.env.DASHBOARD_URL) config.telegram.dashboardUrl = process.env.DASHBOARD_URL;
+  return config;
 }
 
 export function loadProfile() {
