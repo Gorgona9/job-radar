@@ -3,7 +3,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-export const ON_RAILWAY = Boolean(process.env.RAILWAY_ENVIRONMENT);
+// Railway has renamed its variables over time, so accept any of the ones it injects.
+export const ON_RAILWAY = ['RAILWAY_ENVIRONMENT', 'RAILWAY_ENVIRONMENT_NAME', 'RAILWAY_ENVIRONMENT_ID', 'RAILWAY_PROJECT_ID', 'RAILWAY_SERVICE_ID']
+  .some((k) => process.env[k]);
 
 // Where jobs.json / status.json live. On Railway this must be a volume (Railway sets
 // RAILWAY_VOLUME_MOUNT_PATH when one is attached) — the container's own disk is wiped on every deploy.
