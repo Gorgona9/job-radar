@@ -1,6 +1,6 @@
 // Country name → aliases and cities, used to give every job a country for the dashboard filter.
 const MAP = {
-  Germany: ['germany', 'deutschland', 'de', 'berlin', 'munich', 'münchen', 'muenchen', 'hamburg', 'frankfurt', 'cologne', 'köln', 'koeln', 'stuttgart', 'düsseldorf', 'duesseldorf', 'leipzig', 'dresden', 'karlsruhe', 'nuremberg', 'nürnberg', 'hannover', 'hanover', 'bonn', 'potsdam', 'aachen', 'heidelberg', 'mannheim', 'freiburg', 'bremen', 'dortmund', 'essen', 'münster', 'augsburg', 'regensburg', 'darmstadt', 'wiesbaden', 'mainz', 'kiel', 'ulm', 'jena', 'erlangen', 'walldorf'],
+  Germany: ['germany', 'deutschland', 'de', 'berlin', 'munich', 'münchen', 'muenchen', 'hamburg', 'frankfurt', 'cologne', 'köln', 'koeln', 'stuttgart', 'düsseldorf', 'duesseldorf', 'leipzig', 'dresden', 'karlsruhe', 'nuremberg', 'nürnberg', 'hannover', 'hanover', 'bonn', 'potsdam', 'aachen', 'heidelberg', 'mannheim', 'freiburg', 'bremen', 'dortmund', 'essen', 'münster', 'augsburg', 'regensburg', 'darmstadt', 'wiesbaden', 'mainz', 'kiel', 'ulm', 'jena', 'erlangen', 'walldorf', 'braunschweig', 'bochum', 'krefeld', 'lübeck', 'halle (saale)', 'saarbrücken', 'oldenburg', 'gießen', 'fürth', 'wuppertal', 'bielefeld', 'kassel', 'würzburg', 'ingolstadt', 'magdeburg', 'rostock', 'erfurt', 'chemnitz', 'osnabrück', 'paderborn', 'göttingen', 'bayern', 'bavaria', 'baden-württemberg', 'nordrhein-westfalen', 'north rhine-westphalia', 'niedersachsen', 'lower saxony', 'hessen', 'hesse', 'sachsen', 'saxony', 'sachsen-anhalt', 'thüringen', 'thuringia', 'rheinland-pfalz', 'saarland', 'schleswig-holstein', 'mecklenburg-vorpommern', 'brandenburg'],
   Netherlands: ['netherlands', 'the netherlands', 'holland', 'nederland', 'nl', 'amsterdam', 'rotterdam', 'eindhoven', 'utrecht', 'the hague', 'den haag', 'delft', 'groningen', 'nijmegen', 'arnhem', 'tilburg', 'breda', 'haarlem'],
   Austria: ['austria', 'österreich', 'at', 'vienna', 'wien', 'graz', 'linz', 'salzburg', 'innsbruck', 'klagenfurt'],
   Switzerland: ['switzerland', 'schweiz', 'suisse', 'ch', 'zurich', 'zürich', 'geneva', 'genève', 'basel', 'lausanne', 'bern', 'lucerne', 'luzern', 'zug', 'st. gallen', 'winterthur', 'lugano', 'nyon'],
@@ -45,9 +45,15 @@ const MAP = {
   Singapore: ['singapore', 'sg'],
   Australia: ['australia', 'au', 'sydney', 'melbourne'],
   'New Zealand': ['new zealand', 'nz', 'auckland'],
-  'United States': ['united states', 'usa', 'us', 'u.s.', 'san francisco', 'new york', 'seattle', 'austin', 'boston', 'chicago', 'los angeles'],
+  'United States': ['united states', 'usa', 'us', 'u.s.', 'san francisco', 'new york', 'seattle', 'austin', 'boston', 'chicago', 'los angeles', 'palo alto', 'washington dc', 'arlington, va', 'colorado', 'texas', 'illinois'],
   Turkey: ['turkey', 'türkiye', 'istanbul', 'ankara'],
   Ukraine: ['ukraine', 'kyiv', 'kiev', 'lviv'],
+  India: ['india', 'bangalore', 'bengaluru', 'hyderabad', 'pune', 'chennai', 'noida', 'gurgaon', 'gurugram', 'mumbai', 'delhi'],
+  Philippines: ['philippines', 'manila', 'cebu'],
+  Brazil: ['brazil', 'brasil', 'são paulo', 'sao paulo'],
+  Mexico: ['mexico', 'méxico'],
+  Israel: ['israel', 'tel aviv'],
+  China: ['china', 'shanghai', 'beijing', 'shenzhen'],
 };
 
 // Two-letter codes only count when written in upper case ("Lisbon, PT"), so "it" / "no" in text don't match.
@@ -71,6 +77,7 @@ export function jobCountry(job) {
   const hit = ENTRIES.find((e) => e.re.test(loc));
   if (hit) return hit.country;
   if (ai) return ai.replace(/\b\w/g, (c) => c.toUpperCase());
+  if (/kreis\b/i.test(loc)) return 'Germany'; // Adzuna's German district format ("Starnberg (Kreis)", "Ostalbkreis")
   if (job.source === 'arbeitnow' && loc) return 'Germany'; // German board; small towns aren't in the city list
   return loc ? 'Other' : 'Unknown';
 }

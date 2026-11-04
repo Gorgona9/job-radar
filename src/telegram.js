@@ -43,7 +43,7 @@ export async function notifyNewMatches(matches, { filteredCount = 0, errors = []
   if (!matches.length) return 'nothing new to send';
   const cfg = loadConfig();
   const sorted = [...matches].sort((a, b) => b.verdict.score - a.verdict.score);
-  const header = `🚆 <b>${sorted.length} new job${sorted.length > 1 ? 's' : ''} with possible relocation to Germany</b>\n${filteredCount} others filtered out. History: ${escHtml(cfg.telegram.dashboardUrl)}`;
+  const header = `🚆 <b>${sorted.length} new job${sorted.length > 1 ? 's' : ''} with possible relocation</b>\n${filteredCount} others filtered out. History: ${escHtml(cfg.telegram.dashboardUrl)}`;
   const chunks = [header];
   for (const j of sorted) {
     const block = jobBlock(j);

@@ -6,6 +6,7 @@ import { ROOT, loadConfig, loadProfile } from './util.js';
 import { loadJobs, loadStatus, saveStatus, updateJobStatus } from './store.js';
 import { runFetch, isRunning } from './fetch.js';
 import { callClaude, hasApiKey } from './scorer.js';
+import { jobCountry } from './countries.js';
 
 const config = loadConfig();
 const PORT = Number(process.env.PORT) || config.port || 4310;
@@ -64,7 +65,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/api/jobs') {
       const db = loadJobs();
       const st = loadStatus();
-      const jobs = Object.values(db.jobs).map((j) => ({ ...j, my: st.jobs[j.id] || null }));
+      const jobs = Object.values(db.jobs).map((j) => ({ ...j, country: jobCountry(j), my: st.jobs[j.id] || null }));
       return send(res, 200, {
         jobs, runs: db.runs.slice(-60), lastSeenAt: st.lastSeenAt,
         mode: MODE, running: isRunning(), lastSync, aiEnabled: hasApiKey(),

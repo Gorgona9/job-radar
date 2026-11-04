@@ -7,7 +7,18 @@ export async function fetchLandingJobs(cfg) {
   const jobs = [];
   const pages = cfg.maxPages ?? 4;
   for (let p = 0; p < pages; p++) {
-    const list = await fetchJson(`https://landing.jobs/api/v1/jobs?limit=50&offset=${p * 50}`);
+    let list;
+    try {
+      list = await fetchJson(`https://landing.jobs/api/v1/jobs?limit=50&offset=${p * 50}`);
+    } catch (e) {
+      // Landing.jobs answers 403 to cloud/datacenter IPs (GitHub Actions) but works from a home connection.
+      // That's their choice, so we don't try to get around it — just skip quietly and keep what we have.
+      if (/^403\b/.test(e.message)) {
+        if (jobs.length) break;
+        return { skipped: process.env.GITHUB_ACTIONS ? 'landing.jobs blocks GitHub’s servers (403); runs fine locally' : 'landing.jobs refused the request (403)' };
+      }
+      throw e;
+    }
     if (!list.length) break;
     for (const j of list) {
       const companySlug = j.url?.match(/\/at\/([^/]+)\//)?.[1] || '';
