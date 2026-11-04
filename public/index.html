@@ -93,7 +93,7 @@ a { color: inherit; }
 /* ---------- Buttons ---------- */
 .btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--surface); padding: 8px 14px; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: 15px; text-decoration: none; transition: border-color .15s, background .15s, transform .1s; }
 .btn:hover { border-color: var(--faint); }
-.btn:active { transform: translateY(1px); }
+button.btn:active, a.btn:active { transform: translateY(1px); }
 .btn.primary { background: var(--signal); color: #1a1a1a; border-color: var(--signal); font-weight: 600; }
 .btn.primary:hover { background: #ffd43a; border-color: #ffd43a; }
 .btn.ghost { background: rgba(255, 255, 255, .08); color: var(--board-ink); border-color: rgba(255, 255, 255, .35); }
@@ -192,7 +192,8 @@ nav.tabs button[aria-selected="true"] .n { background: var(--accent); color: #ff
 .detail { border-top: 1px solid var(--line); padding: 18px 18px 20px; display: grid; gap: 16px; background: var(--surface-2); border-radius: 0 0 var(--radius) var(--radius); }
 .detail .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .detail .actions .spacer { flex: 1; }
-.detail .actions select { border: 0; background: transparent; padding: 0; cursor: pointer; font-weight: 600; text-transform: capitalize; }
+.detail .status-select { appearance: auto; padding-right: 10px; font-weight: 600; }
+.detail .status-select option { background: var(--surface); color: var(--ink); font-weight: 500; }
 .detail blockquote { margin: 0; padding: 10px 14px; border-left: 4px solid var(--signal); background: var(--surface); border-radius: 0 8px 8px 0; font-style: italic; }
 .detail .summary { margin: 0; max-width: 75ch; }
 .detail .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; font-size: 15px; }
@@ -214,7 +215,7 @@ nav.tabs button[aria-selected="true"] .n { background: var(--accent); color: #ff
 .runs th { position: sticky; top: 0; background: var(--surface-2); color: var(--faint); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
 .runs th, .runs td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .runs tr:last-child td { border-bottom: 0; }
-.runs td:nth-child(n+2):nth-child(-n+5) { font-variant-numeric: tabular-nums; font-weight: 600; }
+.runs td:nth-child(n+2):nth-child(-n+6) { font-variant-numeric: tabular-nums; font-weight: 600; }
 
 .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--surface); padding: 11px 20px; border-radius: 10px; box-shadow: var(--shadow-md); display: none; z-index: 5; font-weight: 500; }
 @media (prefers-reduced-motion: no-preference) {
@@ -300,14 +301,17 @@ async function load() {
 }
 
 const isDismissed = (j) => j.my?.status === 'dismissed';
-const isNew = (j) => j.state === 'match' && !isDismissed(j) && (!state.data.lastSeenAt || j.foundAt > state.data.lastSeenAt);
+// Closed = the radar saw it taken down, or you marked the link as dead.
+const isClosed = (j) => Boolean(j.closedAt) || j.my?.status === 'closed';
+const isOpenMatch = (j) => j.state === 'match' && !isDismissed(j) && !isClosed(j);
+const isNew = (j) => isOpenMatch(j) && (!state.data.lastSeenAt || j.foundAt > state.data.lastSeenAt);
 
 const TABS = [
   { id: 'new', label: 'New', test: isNew },
-  { id: 'all', label: 'All matches', test: (j) => j.state === 'match' && !isDismissed(j) },
+  { id: 'all', label: 'All matches', test: isOpenMatch },
   { id: 'saved', label: 'Saved', test: (j) => j.my?.status === 'saved' },
   { id: 'applied', label: 'Applied', test: (j) => ['applied', 'interview', 'offer', 'rejected'].includes(j.my?.status) },
-  { id: 'hidden', label: 'Filtered out', test: (j) => j.state === 'filtered' || isDismissed(j) },
+  { id: 'hidden', label: 'Filtered out', test: (j) => j.state === 'filtered' || isDismissed(j) || (j.state === 'match' && isClosed(j)) },
   { id: 'pending', label: 'Waiting for scoring', test: (j) => j.state === 'pending' },
   { id: 'runs', label: 'Run log' },
 ];
@@ -362,7 +366,7 @@ function render() {
     : [`Checks every ${d.scheduleEveryHours} h`, `last check ${last ? when(last.at) : 'never'}`, d.running && 'checking now…', !d.aiEnabled && 'AI scoring off (no API key)'];
   $('#runInfo').innerHTML = info.filter(Boolean).join(' · ');
 
-  const matches = jobs.filter((j) => j.state === 'match' && !isDismissed(j));
+  const matches = jobs.filter(isOpenMatch);
   const stat = (label, n) => `<div class="stat"><dt>${label}</dt><dd>${n}</dd></div>`;
   $('#stats').innerHTML = stat('Matches', matches.length)
     + stat('Relocation yes', matches.filter((j) => j.verdict?.relocation === 'yes').length)
@@ -449,6 +453,7 @@ function rowHtml(j) {
   const scoreVal = j.state === 'filtered' ? '✕' : j.state === 'pending' ? '…' : v.score ?? '–';
   const relocCls = { yes: 'go', likely: 'maybe', no: 'stop' }[v.relocation] || '';
   const tags = [];
+  if (isClosed(j)) tags.push(`<span class="tag stop" title="${esc(j.closedReason || 'You marked this posting as gone')}">Closed${j.closedAt ? ' ' + esc(new Date(j.closedAt).toLocaleDateString()) : ''}</span>`);
   if (j.state === 'filtered') tags.push(`<span class="tag stop">${esc(j.filterReason)}</span>`);
   if (v.relocation && j.state !== 'filtered') tags.push(`<span class="tag ${relocCls}">Relocation ${esc(v.relocation)}</span>`);
   if (v.knownSponsor) tags.push('<span class="tag go">Known sponsor</span>');
@@ -456,7 +461,7 @@ function rowHtml(j) {
   const sal = salaryText(v.salary);
   if (sal) tags.push(`<span class="tag ${v.blueCard === 'below' ? 'stop' : ''}">${sal}${v.blueCard === 'below' ? ' below Blue Card' : ''}</span>`);
   if (v.work_mode && v.work_mode !== 'unknown') tags.push(`<span class="tag">${esc(v.work_mode)}</span>`);
-  if (j.my?.status && j.my.status !== 'new') tags.push(`<span class="tag mine">${esc(j.my.status)}</span>`);
+  if (j.my?.status && !['new', 'closed'].includes(j.my.status)) tags.push(`<span class="tag mine">${esc(j.my.status)}</span>`);
   const loc = j.location || 'location not listed';
   const showCountry = j.country && !['Other', 'Unknown'].includes(j.country) && ![j.country, LOCAL_NAMES[j.country]].some((n) => n && loc.toLowerCase().includes(n.toLowerCase()));
   const scoreSub = j.state === 'filtered' ? 'out' : j.state === 'pending' ? 'queued' : 'fit';
@@ -484,10 +489,10 @@ function detailHtml(j) {
     <div class="actions">
       <a class="btn primary" href="${esc(j.url)}" target="_blank" rel="noopener">Open posting ↗</a>
       <button class="btn" data-act="saved" data-id="${esc(j.id)}">${my.status === 'saved' ? '★ Saved' : '☆ Save'}</button>
-      <label class="btn">Status
-        <select data-status="${esc(j.id)}">${['new', 'saved', 'applied', 'interview', 'offer', 'rejected', 'dismissed'].map((s) => `<option ${(my.status || 'new') === s ? 'selected' : ''}>${s}</option>`).join('')}</select></label>
+      <select class="btn status-select" aria-label="Status" data-status="${esc(j.id)}">${['new', 'saved', 'applied', 'interview', 'offer', 'rejected', 'dismissed', 'closed'].map((s) => `<option value="${s}" ${(my.status || 'new') === s ? 'selected' : ''}>Status: ${s[0].toUpperCase() + s.slice(1)}</option>`).join('')}</select>
       <button class="btn" data-letter="${esc(j.id)}">${my.coverLetter ? 'Rewrite cover letter' : 'Draft cover letter'}</button>
       <span class="spacer"></span>
+      ${j.closedAt ? '' : `<button class="btn quiet" data-act="closed" data-id="${esc(j.id)}" title="The link says the job is no longer available">${my.status === 'closed' ? 'Marked as gone' : 'Posting gone'}</button>`}
       <button class="btn quiet" data-act="dismissed" data-id="${esc(j.id)}">Not interested</button>
     </div>
     ${v.relocation_evidence ? `<blockquote>“${esc(v.relocation_evidence)}”</blockquote>` : ''}
@@ -506,8 +511,8 @@ function detailHtml(j) {
 function renderRuns() {
   const runs = [...state.data.runs].reverse();
   if (!runs.length) { $('#list').innerHTML = '<p class="empty">No runs yet.</p>'; return; }
-  $('#list').innerHTML = `<div class="runs runs-wrap"><table><thead><tr><th>When</th><th>Collected</th><th>New</th><th>Matches</th><th>Filtered</th><th>Sources</th><th>Telegram</th></tr></thead><tbody>${
-    runs.map((r) => `<tr><td>${esc(new Date(r.at).toLocaleString())}</td><td>${r.collected}</td><td>${r.new}</td><td>${r.matches}</td><td>${r.filtered}</td><td>${
+  $('#list').innerHTML = `<div class="runs runs-wrap"><table><thead><tr><th>When</th><th>Collected</th><th>New</th><th>Matches</th><th>Filtered</th><th>Closed</th><th>Sources</th><th>Telegram</th></tr></thead><tbody>${
+    runs.map((r) => `<tr><td>${esc(new Date(r.at).toLocaleString())}</td><td>${r.collected}</td><td>${r.new}</td><td>${r.matches}</td><td>${r.filtered}</td><td>${r.closed ?? '–'}</td><td>${
       Object.entries(r.sources || {}).map(([k, s]) => `${esc(k)}: ${s.skipped ? 'skipped' : s.found}${s.errors?.length ? ` <span style="color:var(--stop)">${esc(s.errors.join('; '))}</span>` : ''}`).join('<br>')
     }</td><td>${esc(r.telegram || '')}</td></tr>`).join('')}</tbody></table></div>`;
 }
@@ -528,8 +533,8 @@ document.addEventListener('click', async (e) => {
     const job = findJob(t.dataset.id);
     const status = job.my?.status === t.dataset.act ? 'new' : t.dataset.act;
     job.my = await api('/api/status', { id: job.id, status });
-    if (status === 'dismissed') state.open.delete(job.id);
-    toast(status === 'dismissed' ? 'Moved to Filtered out' : status === 'saved' ? 'Saved' : 'Status cleared');
+    if (status === 'dismissed' || status === 'closed') state.open.delete(job.id);
+    toast({ dismissed: 'Moved to Filtered out', closed: 'Marked as gone — moved to Filtered out', saved: 'Saved' }[status] || 'Status cleared');
     render(); return;
   }
   if (t.dataset.letter) {
@@ -563,7 +568,7 @@ $('#fetchBtn').addEventListener('click', async () => {
 });
 
 load().catch((e) => { $('#list').innerHTML = `<p class="empty">Could not load jobs: ${esc(e.message)}. Is the server running (npm start)?</p>`; });
-setInterval(() => { if (!document.querySelector('.detail textarea:focus')) load(); }, 60000);
+setInterval(() => { if (!document.querySelector('.detail :is(textarea, select):focus')) load(); }, 60000);
 </script>
 </body>
 </html>

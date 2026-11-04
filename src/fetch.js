@@ -10,6 +10,31 @@ let running = null;
 
 export function isRunning() { return Boolean(running); }
 
+// Sources that list ALL of a company's open jobs on every request (not just the newest search results).
+const COMPLETE_LISTS = new Set(['greenhouse', 'lever', 'ashby', 'smartrecruiters']);
+
+// Marks postings that are gone. Company career boards return every open job each time, so a job missing
+// from a board that loaded without errors has been taken down. Search-style sources only return the latest
+// results, so for those we can only say "not seen anywhere for N days". `now` is this run's lastSeenAt stamp.
+export function markAvailability(db, report, now, config) {
+  const staleDays = config.staleAfterDays ?? 14;
+  let closed = 0, reopened = 0;
+  for (const j of Object.values(db.jobs)) {
+    if (j.lastSeenAt === now) {
+      if (j.closedAt) { delete j.closedAt; delete j.closedReason; reopened++; }
+      continue;
+    }
+    if (j.closedAt) continue;
+    const r = report[j.source];
+    if (COMPLETE_LISTS.has(j.source) && r?.found > 0 && !r.errors?.length) {
+      j.closedAt = now; j.closedReason = 'Removed from the company’s job board'; closed++;
+    } else if (Date.parse(now) - Date.parse(j.lastSeenAt || j.foundAt) > staleDays * 864e5) {
+      j.closedAt = now; j.closedReason = `Not seen in any source for ${staleDays}+ days`; closed++;
+    }
+  }
+  return { closed, reopened };
+}
+
 export function runFetch(opts = {}) {
   if (!running) running = doRun(opts).finally(() => { running = null; });
   return running;
@@ -43,6 +68,9 @@ async function doRun({ telegram = true, log = console.log } = {}) {
     byKey.set(key, job);
     fresh.push(job);
   }
+
+  const { closed, reopened } = markAvailability(db, report, now, config);
+  if (closed || reopened) log(`  availability: ${closed} postings closed${reopened ? `, ${reopened} back online` : ''}`);
 
   // Cheap rules first; only the survivors go to the AI.
   const toScore = [];
@@ -89,7 +117,7 @@ async function doRun({ telegram = true, log = console.log } = {}) {
 
   const run = {
     at: now, seconds: Math.round((Date.now() - started) / 1000),
-    collected: raw.length, new: fresh.length, matches: newMatches.length, filtered,
+    collected: raw.length, new: fresh.length, matches: newMatches.length, filtered, closed,
     pending: stillPending,
     sources: report, telegram: telegramResult,
   };
