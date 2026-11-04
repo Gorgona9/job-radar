@@ -30,7 +30,7 @@ const cache = new WeakMap();
 function locationRules(config) {
   if (!cache.has(config)) {
     cache.set(config, {
-      target: [...(config.targetLocations || []), ...(config.germanyLocations || []), 'armenia', 'yerevan'].map(termRe),
+      target: [...(config.targetLocations || []), ...(config.germanyLocations || []), 'armenia', 'yerevan', 'gyumri', 'vanadzor', 'армения', 'ереван', 'հայաստան', 'երևան'].map(termRe),
       blocked: (config.blockedLocations || []).map(termRe),
     });
   }

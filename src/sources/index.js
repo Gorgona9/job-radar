@@ -6,6 +6,7 @@ import { fetchLinkedinEmails } from './linkedinEmail.js';
 import { fetchLinkedinSearch } from './linkedinSearch.js';
 import { fetchAshby, fetchSmartRecruiters } from './companyBoards.js';
 import { fetchLandingJobs, fetchHackerNews } from './relocationBoards.js';
+import { fetchStaffAm, fetchHh } from './armenia.js';
 import { fetchRemotive, fetchRemoteOk, fetchHimalayas, fetchJobicy, fetchWorkingNomads, fetchWeWorkRemotely } from './remoteBoards.js';
 
 const SOURCES = {
@@ -23,6 +24,8 @@ const SOURCES = {
   jobicy: (c) => fetchJobicy(c),
   workingnomads: () => fetchWorkingNomads(),
   weworkremotely: (c) => fetchWeWorkRemotely(c),
+  staffam: (c, cfg) => fetchStaffAm(c, cfg),
+  hh: (c, cfg) => fetchHh(c, cfg),
   linkedinSearch: (c, cfg) => fetchLinkedinSearch(c, cfg),
   linkedinEmail: (c) => fetchLinkedinEmails(c),
 };

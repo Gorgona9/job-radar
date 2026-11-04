@@ -4,7 +4,7 @@
 Name: Astghik Trdatyan
 Title: Full Stack Developer
 Based in: Abovyan, Armenia. No EU work permit and no EU residence — needs an employer that hires from abroad (visa sponsorship / EU Blue Card / relocation), or a remote employer that hires people living in Armenia.
-Target: full-time role with relocation (onsite or hybrid), or fully remote open to Armenia. Roles that require an existing EU work permit or living in the EU do NOT work.
+Target: full-time role with relocation (onsite or hybrid), a job in Armenia (Yerevan), or fully remote open to Armenia. Roles that require an existing EU work permit or living in the EU do NOT work.
 Languages: Armenian (native), Russian (C2), English (B2, daily working language), German (A2 — cannot work in German yet).
 Experience: 9+ years of commercial development (2017–present), full stack; strongest on JVM backends + Vue/TypeScript frontends.
 Blue Card note: IT specialist with 9+ years — qualifies for the German EU Blue Card through the IT-specialist route even without degree recognition.

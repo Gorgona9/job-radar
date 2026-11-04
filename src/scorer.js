@@ -1,7 +1,8 @@
 import { RELOCATION_POSITIVE, germanRequiredHeuristic } from './filter.js';
 import { sleep } from './util.js';
+import { jobCountry, jobRegion } from './countries.js';
 
-const SYSTEM = `You screen job postings for one specific candidate. She lives in Armenia and has NO EU work permit, so a job in Germany only works if the employer hires from abroad (EU Blue Card, visa sponsorship, relocation). Her profile is below.
+const SYSTEM = `You screen job postings for one specific candidate. She lives in Yerevan, Armenia, and has NO EU work permit. A job abroad (Germany, other EU countries, etc.) only works if the employer hires from abroad (EU Blue Card, visa sponsorship, relocation). A job in Armenia works without any move, and a remote job works if it is open to people living in Armenia. Her profile is below.
 
 Return ONLY a JSON object, no prose, no code fences:
 {
@@ -9,6 +10,8 @@ Return ONLY a JSON object, no prose, no code fences:
  "relocation_evidence": "the exact short phrase from the posting that justifies the verdict (max 25 words), or a short reason if nothing is stated",
  "german": "none" | "nice" | "required",
  "work_mode": "onsite" | "hybrid" | "remote" | "unknown",
+ "country": "country of the office in English (e.g. \"Germany\", \"Armenia\") — also when remote work is possible; \"Remote\" only if there is no office location at all",
+ "role": "backend" | "frontend" | "fullstack" | "other",
  "seniority": "junior" | "mid" | "senior" | "lead" | "unknown",
  "salary": { "min": number|null, "max": number|null } ,
  "matched_skills": ["max 6 of her skills that this job asks for"],
@@ -22,8 +25,11 @@ Rules:
 - "likely": no explicit statement but strong signals: English as the working language, team of many nationalities, international hiring language, or the company is well known for sponsoring.
 - "unclear": nothing either way, or the description is missing/very short.
 - "no": requires existing EU work authorization or residence, says no sponsorship, or is remote only within a country/region she isn't in.
-- german "required" only when German at business/fluent/C1+ level is a must. "A plus" = "nice".
-- salary: yearly gross EUR if stated, else nulls. Convert monthly to yearly.
+- Job in Armenia: she can take it without moving, so relocation is "yes" (evidence: "In Armenia — no move needed"). Never answer "no" just because no relocation is needed.
+- Remote job: "yes" if it is explicitly open to Armenia, worldwide, or anywhere in a region that includes Armenia (e.g. EMEA, CIS); "likely"/"unclear" if it doesn't say; "no" if limited to countries she doesn't live in.
+- role: "backend" = server-side work with NO frontend tasks (a frontend framework at most as a "nice to have"); "frontend" = UI work only; "fullstack" = both sides are part of the job; "other" = mobile, data, QA, management, unclear, etc.
+- german "required" only when German at business/fluent/C1+ level is a must. "A plus" = "nice". (Armenian and Russian requirements are fine — she is native/C2.)
+- salary: yearly EUR if stated, else nulls. Convert monthly to yearly and other currencies (AMD, RUB, USD…) to EUR.
 - fit: how well her real skills cover the MUST-HAVE requirements and seniority. Ignore relocation and language when scoring fit.
 
 CANDIDATE PROFILE:
@@ -107,12 +113,17 @@ export function finalize(job, verdict, config) {
   const salary = verdict.salary?.min || verdict.salary?.max ? verdict.salary : job.salary || null;
   const known = config.knownSponsors.some((c) => job.company && job.company.toLowerCase().includes(c.toLowerCase()));
   let relocation = verdict.relocation;
+  let evidence = verdict.relocation_evidence;
+  const region = jobRegion({ ...job, verdict }, jobCountry({ ...job, verdict }));
+  // A job in Armenia needs no move. Models tend to read "no relocation needed" as relocation "no", so fix it here.
+  if (region === 'armenia' && relocation !== 'yes') { relocation = 'yes'; evidence = 'In Armenia — no move needed'; }
   if (known && (relocation === 'unclear' || relocation === 'likely')) relocation = 'likely';
   const t = config.scoring.blueCardMinEur;
   const top = salary?.max || salary?.min;
-  const blueCard = !top ? 'unknown' : (salary.min || top) >= t ? 'ok' : top < t ? 'below' : 'unknown';
+  // The Blue Card salary line only matters when she moves to the EU, not for jobs in Armenia or remote.
+  const blueCard = region !== 'abroad' || !top ? 'unknown' : (salary.min || top) >= t ? 'ok' : top < t ? 'below' : 'unknown';
   const score = Math.round(Math.max(0, Math.min(100, (verdict.fit ?? 50) * (RELOC_WEIGHT[relocation] ?? 0.6) * (GERMAN_WEIGHT[verdict.german] ?? 1) * (blueCard === 'below' ? 0.7 : 1) + (known ? 8 : 0))));
-  return { ...verdict, relocation, knownSponsor: known, salary, blueCard, score };
+  return { ...verdict, relocation, relocation_evidence: evidence, knownSponsor: known, salary, blueCard, score };
 }
 
 export async function scoreJobs(jobs, profile, config, log = console.log) {

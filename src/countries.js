@@ -23,7 +23,7 @@ const MAP = {
   Albania: ['albania', 'tirana'],
   Moldova: ['moldova', 'chisinau', 'chișinău'],
   Georgia: ['georgia', 'tbilisi'],
-  Armenia: ['armenia', 'yerevan'],
+  Armenia: ['armenia', 'yerevan', 'gyumri', 'vanadzor', 'ereván', 'армения', 'ереван', 'гюмри', 'հայաստան', 'երևան'],
   Belgium: ['belgium', 'be', 'brussels', 'antwerp', 'ghent', 'leuven', 'liège', 'liege'],
   Luxembourg: ['luxembourg', 'lu', 'luxembourg city', 'esch-sur-alzette'],
   Ireland: ['ireland', 'ie', 'dublin', 'cork', 'galway', 'limerick'],
@@ -59,7 +59,7 @@ const MAP = {
 // Two-letter codes only count when written in upper case ("Lisbon, PT"), so "it" / "no" in text don't match.
 const ENTRIES = Object.entries(MAP).flatMap(([country, names]) => names.map((n) => {
   const esc = n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return { country, re: n.length === 2 ? new RegExp(`(?:^|[^A-Za-z])${n.toUpperCase()}(?:[^A-Za-z]|$)`) : new RegExp(`(?:^|[^a-zäöüßéèăîșțłńóśźż])${esc}(?:[^a-zäöüßéèăîșțłńóśźż]|$)`, 'i') };
+  return { country, re: n.length === 2 ? new RegExp(`(?:^|[^A-Za-z])${n.toUpperCase()}(?:[^A-Za-z]|$)`) : new RegExp(`(?:^|[^\p{L}])${esc}(?:[^\p{L}]|$)`, 'iu') };
 }));
 
 const ALIASES = Object.fromEntries(Object.entries(MAP).flatMap(([c, names]) => [[c.toLowerCase(), c], ...names.filter((n) => n.length > 2).map((n) => [n, c])]));
@@ -80,4 +80,12 @@ export function jobCountry(job) {
   if (/kreis\b/i.test(loc)) return 'Germany'; // Adzuna's German district format ("Starnberg (Kreis)", "Ostalbkreis")
   if (job.source === 'arbeitnow' && loc) return 'Germany'; // German board; small towns aren't in the city list
   return loc ? 'Other' : 'Unknown';
+}
+
+// Which section of the dashboard a job belongs to: a job in Armenia (no move needed), a remote job,
+// or a job abroad that needs relocation. A remote job at an Armenian company counts as Armenia.
+export function jobRegion(job, country = jobCountry(job)) {
+  if (country === 'Armenia' || ENTRIES.some((e) => e.country === 'Armenia' && e.re.test(job.location || ''))) return 'armenia';
+  if (country === 'Remote' || job.verdict?.work_mode === 'remote' || job.remote === true) return 'remote';
+  return 'abroad';
 }

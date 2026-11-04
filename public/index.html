@@ -113,6 +113,25 @@ nav.tabs .n { display: inline-block; min-width: 22px; margin-left: 6px; padding:
 nav.tabs button[aria-selected="true"] .n { background: var(--accent); color: #fff; }
 @media (prefers-color-scheme: dark) { nav.tabs button[aria-selected="true"] .n { color: #1a1a1a; } }
 
+/* Where: abroad / Armenia / remote — the main switch, above the tabs */
+.regions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 10px 0 2px; }
+.regions button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; border: 1px solid var(--line); background: var(--surface-2); border-radius: 10px; padding: 9px 12px; cursor: pointer; transition: border-color .15s, background .15s; min-width: 0; }
+.regions button:hover { border-color: var(--faint); }
+.regions b { font-size: 15px; display: flex; gap: 8px; align-items: baseline; width: 100%; }
+.regions b .n { margin-left: auto; font-weight: 600; font-size: 13px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.regions small { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.regions button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.regions button[aria-pressed="true"] small, .regions button[aria-pressed="true"] .n { color: var(--surface); opacity: .75; }
+@media (max-width: 640px) { .regions { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Single-choice segmented control (role filter) */
+.seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg label { position: relative; padding: 8px 12px; font-size: 14px; cursor: pointer; color: var(--muted); background: var(--surface-2); white-space: nowrap; }
+.seg label + label { border-left: 1px solid var(--line); }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label:has(input:checked) { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: inset 0 -2px 0 var(--accent); }
+.seg label:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: -2px; }
+
 .group-label { font: 600 13px/1 var(--body); color: var(--faint); text-transform: uppercase; letter-spacing: .08em; margin-right: 6px; }
 .countries { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0 0 14px; }
 .countries button, .countries select { border: 1px solid var(--line); background: var(--surface); border-radius: 99px; padding: 5px 12px; font-size: 14px; cursor: pointer; transition: border-color .15s, background .15s; }
@@ -174,6 +193,7 @@ nav.tabs button[aria-selected="true"] .n { background: var(--accent); color: #ff
 .tag.go { color: var(--go); background: color-mix(in srgb, var(--go) 12%, transparent); font-weight: 600; }
 .tag.maybe { color: var(--maybe); background: color-mix(in srgb, var(--maybe) 12%, transparent); font-weight: 600; }
 .tag.stop { color: var(--stop); background: color-mix(in srgb, var(--stop) 11%, transparent); font-weight: 600; }
+.tag.role { background: transparent; box-shadow: inset 0 0 0 1px var(--line); color: var(--ink); }
 .tag.mine { background: var(--ink); color: var(--surface); font-weight: 600; text-transform: capitalize; }
 .tag.applied-co { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent); font-weight: 600; cursor: help; }
 .detail .prior { background: color-mix(in srgb, var(--accent) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); border-radius: 10px; padding: 10px 14px; font-size: 15px; }
@@ -252,6 +272,7 @@ nav.tabs button[aria-selected="true"] .n { background: var(--accent); color: #ff
 
 <main>
   <div class="panel">
+    <div class="regions" id="regions" role="group" aria-label="Where"></div>
     <nav class="tabs" role="tablist" id="tabs"></nav>
 
     <div class="countries" id="countries" role="group" aria-label="Country"></div>
@@ -261,8 +282,14 @@ nav.tabs button[aria-selected="true"] .n { background: var(--accent); color: #ff
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
         <input type="search" id="q" placeholder="Search title, company, city, skill">
       </label>
-      <div class="chipset" role="group" aria-label="Relocation">
-        <label data-v="yes"><input type="checkbox" value="yes" checked> Relocation yes</label>
+      <div class="seg" id="roleFilter" role="radiogroup" aria-label="Role">
+        <label><input type="radio" name="role" value=""> Any role</label>
+        <label title="Server-side jobs without frontend work"><input type="radio" name="role" value="backend"> Backend</label>
+        <label><input type="radio" name="role" value="fullstack"> Full stack</label>
+        <label><input type="radio" name="role" value="frontend"> Frontend</label>
+      </div>
+      <div class="chipset" id="relocChips" role="group" aria-label="Relocation">
+        <label data-v="yes"><input type="checkbox" value="yes" checked> <span id="yesLabel">Relocation yes</span></label>
         <label data-v="likely"><input type="checkbox" value="likely" checked> Likely</label>
         <label data-v="unclear"><input type="checkbox" value="unclear" checked> Unclear</label>
       </div>
@@ -281,7 +308,15 @@ nav.tabs button[aria-selected="true"] .n { background: var(--accent); color: #ff
 
 <script>
 const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
-const state = { data: null, tab: 'new', open: new Set(), country: store.get('jr.country') || '' };
+const state = { data: null, tab: 'new', open: new Set(), country: store.get('jr.country') || '', region: store.get('jr.region') || '', role: store.get('jr.role') || '' };
+// The three ways to work: move abroad, stay in Armenia, or work remotely from Armenia.
+const REGIONS = [
+  { id: '', label: 'Everywhere', hint: 'All jobs' },
+  { id: 'abroad', label: 'Abroad', hint: 'Relocation & visa' },
+  { id: 'armenia', label: 'Armenia', hint: 'Yerevan & elsewhere, no move' },
+  { id: 'remote', label: 'Remote', hint: 'Open to Armenia' },
+];
+const ROLE_NAMES = { backend: 'Backend', frontend: 'Frontend', fullstack: 'Full stack' };
 const TOP_COUNTRIES = 7;
 const LOCAL_NAMES = { Germany: 'Deutschland', Netherlands: 'Nederland', Austria: 'Österreich', Switzerland: 'Schweiz', Poland: 'Polska', Spain: 'España', Italy: 'Italia', Czechia: 'Czech Republic', 'United Kingdom': 'UK' };
 const $ = (s) => document.querySelector(s);
@@ -325,7 +360,11 @@ function salaryText(s) {
   return s.min && s.max && s.min !== s.max ? `${k(s.min)}–${k(s.max)}` : k(s.min || s.max);
 }
 
-const inCountry = (j) => !state.country || j.country === state.country;
+const inRegion = (j) => !state.region || j.region === state.region;
+// Countries only narrow down "Abroad" / "Everywhere" — Armenia and Remote have no country choice.
+const countryApplies = () => state.region === '' || state.region === 'abroad';
+const inCountry = (j) => !state.country || !countryApplies() || j.country === state.country;
+const inRole = (j) => !state.role || j.role === state.role;
 
 // "Applied here" badge: group your applications by company, ignoring legal suffixes and punctuation,
 // so "SIXT SE" and "Sixt" count as the same employer.
@@ -345,7 +384,28 @@ function buildAppliedIndex(jobs) {
   return idx;
 }
 const appliedElsewhere = (j) => (state.appliedAt?.get(companyKey(j.company)) || []).filter((o) => o.id !== j.id);
-const countryTitle = (c) => !c ? 'Jobs across all countries' : c === 'Remote' ? 'Remote jobs' : c === 'Other' || c === 'Unknown' ? 'Jobs elsewhere' : `Jobs in ${c}`;
+function boardTitle() {
+  const role = state.role ? ROLE_NAMES[state.role] + ' jobs' : 'Jobs';
+  if (state.region === 'armenia') return `${role} in Armenia`;
+  if (state.region === 'remote') return `Remote ${role.toLowerCase()} open to Armenia`;
+  const c = state.country;
+  if (c === 'Remote') return `Remote ${role.toLowerCase()}`;
+  if (c === 'Other' || c === 'Unknown') return `${role} elsewhere`;
+  if (c) return `${role} in ${c}`;
+  return state.region === 'abroad' ? `${role} abroad with relocation` : `${role} across all countries`;
+}
+
+function renderRegions(allJobs, tab) {
+  const counts = { '': 0, abroad: 0, armenia: 0, remote: 0 };
+  for (const j of allJobs) if (inRole(j) && (!tab?.test || tab.test(j))) { counts[''] += 1; counts[j.region] = (counts[j.region] || 0) + 1; }
+  $('#regions').innerHTML = REGIONS.map((r) => `<button type="button" data-region="${r.id}" aria-pressed="${state.region === r.id}"><b>${r.label}<span class="n">${counts[r.id] || 0}</span></b><small>${r.hint}</small></button>`).join('');
+}
+
+function setRegion(r) {
+  state.region = r;
+  store.set('jr.region', r);
+  render();
+}
 
 // Pills for the biggest countries in the current tab (plus Remote), everything else in a menu.
 function renderCountries(allJobs, tab) {
@@ -374,10 +434,15 @@ function setCountry(c) {
 function render() {
   const d = state.data;
   const allJobs = d.jobs;
-  const jobs = allJobs.filter(inCountry);
+  const scope = allJobs.filter((j) => inRegion(j) && inRole(j)); // what the country pills count
+  const jobs = scope.filter(inCountry);
   state.appliedAt = buildAppliedIndex(allJobs); // across all countries — same employer, any office
-  $('#boardTitle').textContent = countryTitle(state.country);
-  document.title = 'Job radar — ' + (state.country || 'all countries');
+  $('#boardTitle').textContent = boardTitle();
+  document.title = 'Job radar — ' + boardTitle();
+  // "Relocation" means nothing for a job at home; for remote jobs it means "open to people in Armenia".
+  $('#relocChips').style.display = state.region === 'armenia' ? 'none' : '';
+  $('#yesLabel').textContent = state.region === 'remote' ? 'Open to Armenia' : 'Relocation yes';
+  for (const i of document.querySelectorAll('#roleFilter input')) i.checked = i.value === state.role;
   const newCount = jobs.filter(isNew).length;
   $('#newCount').textContent = newCount;
   $('#newLabel').textContent = newCount === 1 ? 'new match since your last visit' : 'new matches since your last visit';
@@ -392,7 +457,9 @@ function render() {
   const matches = jobs.filter(isOpenMatch);
   const stat = (label, n) => `<div class="stat"><dt>${label}</dt><dd>${n}</dd></div>`;
   $('#stats').innerHTML = stat('Matches', matches.length)
-    + stat('Relocation yes', matches.filter((j) => j.verdict?.relocation === 'yes').length)
+    + (state.region === 'armenia'
+      ? stat('Backend', matches.filter((j) => j.role === 'backend').length)
+      : stat(state.region === 'remote' ? 'Open to Armenia' : 'Relocation yes', matches.filter((j) => j.verdict?.relocation === 'yes').length))
     + stat('Saved', jobs.filter((j) => j.my?.status === 'saved').length)
     + stat('Applied', jobs.filter((j) => ['applied', 'interview', 'offer', 'rejected'].includes(j.my?.status)).length);
   $('#fetchBtn').textContent = d.mode === 'github' ? 'Sync from GitHub' : d.running ? 'Checking…' : 'Check for new jobs';
@@ -412,8 +479,12 @@ function render() {
   }).join('');
 
   $('#filters').style.display = state.tab === 'runs' ? 'none' : '';
-  $('#countries').style.display = state.tab === 'runs' ? 'none' : '';
-  if (state.tab !== 'runs') renderCountries(allJobs, TABS.find((t) => t.id === state.tab));
+  $('#regions').style.display = state.tab === 'runs' ? 'none' : '';
+  $('#countries').style.display = state.tab === 'runs' || !countryApplies() ? 'none' : '';
+  if (state.tab !== 'runs') {
+    renderRegions(allJobs, TABS.find((t) => t.id === state.tab));
+    if (countryApplies()) renderCountries(scope, TABS.find((t) => t.id === state.tab));
+  }
   $('.toolbar').style.display = state.tab === 'runs' ? 'none' : '';
   if (state.tab === 'runs') return renderRuns();
 
@@ -426,7 +497,7 @@ function render() {
   let list = jobs.filter(tab.test).filter((j) => {
     if (src && j.source !== src) return false;
     if (scored && j.verdict) {
-      if (!verdicts.includes(j.verdict.relocation)) return false;
+      if (state.region !== 'armenia' && !verdicts.includes(j.verdict.relocation)) return false;
       if ((j.verdict.score ?? 0) < min) return false;
     }
     if (q) {
@@ -443,11 +514,12 @@ function render() {
   $('#countLine').textContent = `${list.length} job${list.length === 1 ? '' : 's'}`;
   if (!list.length) {
     const msg = {
-      new: jobs.length ? 'Nothing new since your last visit. Older matches are under All matches.' : 'No jobs yet. Press “Check for new jobs” to run the first search.',
+      new: allJobs.length ? 'Nothing new since your last visit. Older matches are under All matches.' : 'No jobs yet. Press “Check for new jobs” to run the first search.',
       saved: 'Save a job from its details to keep it here.',
       applied: 'Jobs you mark as applied are tracked here.',
     }[state.tab] || 'No jobs match these filters.';
-    const where = state.country ? ` Nothing here for ${state.country} right now — pick All to see every country.` : '';
+    const narrowed = [state.role && 'the role filter', state.country && countryApplies() && state.country, state.region && REGIONS.find((r) => r.id === state.region).label].filter(Boolean);
+    const where = narrowed.length ? ` Nothing here for ${narrowed.join(' + ')} right now — widen it to see more.` : '';
     $('#list').innerHTML = `<p class="empty">${esc(msg + where)}</p>`;
     return;
   }
@@ -480,11 +552,13 @@ function rowHtml(j) {
   if (prior.length) tags.push(`<span class="tag applied-co" title="${esc('You applied for: ' + prior.map((o) => `${o.title} (${o.my.status})`).join('; '))}">✓ Applied here${prior.length > 1 ? ' ×' + prior.length : ''}</span>`);
   if (isClosed(j)) tags.push(`<span class="tag stop" title="${esc(j.closedReason || 'You marked this posting as gone')}">Closed${j.closedAt ? ' ' + esc(new Date(j.closedAt).toLocaleDateString()) : ''}</span>`);
   if (j.state === 'filtered') tags.push(`<span class="tag stop">${esc(j.filterReason)}</span>`);
-  if (v.relocation && j.state !== 'filtered') tags.push(`<span class="tag ${relocCls}">Relocation ${esc(v.relocation)}</span>`);
+  if (j.role && j.role !== 'other') tags.push(`<span class="tag role">${ROLE_NAMES[j.role]}</span>`);
+  if (v.relocation && j.state !== 'filtered' && j.region !== 'armenia') tags.push(`<span class="tag ${relocCls}">${j.region === 'remote' ? 'Open to Armenia' : 'Relocation'} ${esc(v.relocation)}</span>`);
   if (v.knownSponsor) tags.push('<span class="tag go">Known sponsor</span>');
   if (v.german && v.german !== 'none') tags.push(`<span class="tag">German ${v.german === 'nice' ? 'a plus' : 'required'}</span>`);
   const sal = salaryText(v.salary);
-  if (sal) tags.push(`<span class="tag ${v.blueCard === 'below' ? 'stop' : ''}">${sal}${v.blueCard === 'below' ? ' below Blue Card' : ''}</span>`);
+  const belowBlueCard = v.blueCard === 'below' && j.region === 'abroad'; // only matters when moving to the EU
+  if (sal) tags.push(`<span class="tag ${belowBlueCard ? 'stop' : ''}">${sal}${belowBlueCard ? ' below Blue Card' : ''}</span>`);
   if (v.work_mode && v.work_mode !== 'unknown') tags.push(`<span class="tag">${esc(v.work_mode)}</span>`);
   if (j.my?.status && !['new', 'closed'].includes(j.my.status)) tags.push(`<span class="tag mine">${esc(j.my.status)}</span>`);
   const loc = j.location || 'location not listed';
@@ -547,9 +621,10 @@ function renderRuns() {
 function findJob(id) { return state.data.jobs.find((j) => j.id === id); }
 
 document.addEventListener('click', async (e) => {
-  const t = e.target.closest('[data-tab],[data-toggle],[data-act],[data-letter],[data-copy],[data-country]');
+  const t = e.target.closest('[data-tab],[data-toggle],[data-act],[data-letter],[data-copy],[data-country],[data-region]');
   if (!t) return;
   if ('country' in t.dataset) { setCountry(t.dataset.country); return; }
+  if ('region' in t.dataset) { setRegion(t.dataset.region); return; }
   if (t.dataset.tab) { state.tab = t.dataset.tab; render(); return; }
   if (t.dataset.toggle) {
     const id = t.dataset.toggle;
@@ -579,6 +654,7 @@ document.addEventListener('change', async (e) => {
   if (t.dataset.status) { const job = findJob(t.dataset.status); job.my = await api('/api/status', { id: job.id, status: t.value }); toast('Status: ' + t.value); render(); return; }
   if (t.dataset.note) { const job = findJob(t.dataset.note); job.my = await api('/api/status', { id: job.id, note: t.value }); toast('Note saved'); return; }
   if (t.id === 'moreCountries') { if (t.value) setCountry(t.value); return; }
+  if (t.name === 'role') { state.role = t.value; store.set('jr.role', t.value); render(); return; }
   if (t.closest('#filters') || t.id === 'sort') render();
 });
 $('#q').addEventListener('input', () => render());

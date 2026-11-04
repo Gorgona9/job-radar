@@ -7,13 +7,14 @@ import { ROOT, ON_RAILWAY, DATA_DIR, loadConfig, loadProfile } from './util.js';
 import { loadJobs, loadStatus, saveStatus, updateJobStatus } from './store.js';
 import { runFetch, isRunning } from './fetch.js';
 import { callClaude, hasApiKey } from './scorer.js';
-import { jobCountry } from './countries.js';
+import { jobCountry, jobRegion } from './countries.js';
+import { jobRole } from './roles.js';
 
 const config = loadConfig();
 const PORT = Number(process.env.PORT) || config.port || 4310;
 const MODE = config.mode === 'github' ? 'github' : 'local';
 // On your PC the dashboard only answers this computer; on a server it must listen publicly.
-const HOST = process.env.HOST || (ON_RAILWAY || process.env.PORT ? '0.0.0.0' : '127.0.0.1');
+const HOST = process.env.HOST || (ON_RAILWAY ? '0.0.0.0' : '127.0.0.1');
 const PUBLIC = !['127.0.0.1', 'localhost', '::1'].includes(HOST);
 const PASSWORD = process.env.DASHBOARD_PASSWORD || '';
 let lastSync = null;
@@ -104,7 +105,10 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/api/jobs') {
       const db = loadJobs();
       const st = loadStatus();
-      const jobs = Object.values(db.jobs).map((j) => ({ ...j, country: jobCountry(j), my: st.jobs[j.id] || null }));
+      const jobs = Object.values(db.jobs).map((j) => {
+        const country = jobCountry(j);
+        return { ...j, country, region: jobRegion(j, country), role: jobRole(j), my: st.jobs[j.id] || null };
+      });
       return send(res, 200, {
         jobs, runs: db.runs.slice(-60), lastSeenAt: st.lastSeenAt,
         mode: MODE, running: isRunning(), lastSync, aiEnabled: hasApiKey(),

@@ -475,6 +475,37 @@
       ],
       "query": "engineer"
     },
+    "staffam": {
+      "enabled": true,
+      "categories": [
+        "software-development"
+      ],
+      "maxPages": 2,
+      "maxDetails": 40,
+      "delayMs": 1500
+    },
+    "hh": {
+      "enabled": true,
+      "areas": [
+        "13"
+      ],
+      "remoteAreas": [
+        "113"
+      ],
+      "searchTerms": [
+        "java",
+        "kotlin",
+        "spring",
+        "fullstack",
+        "full stack",
+        "backend",
+        "vue",
+        "typescript"
+      ],
+      "daysBack": 7,
+      "perPage": 50,
+      "maxDetails": 60
+    },
     "linkedinSearch": {
       "enabled": true,
       "queries": [
@@ -483,6 +514,7 @@
         "java developer"
       ],
       "locations": [
+        "Armenia",
         "Germany",
         "Netherlands",
         "United Kingdom",
@@ -557,4 +589,3 @@
     "dashboardUrl": "http://localhost:4310"
   }
 }
-

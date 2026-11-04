@@ -15,6 +15,7 @@ cp .env.example .env
 2. **Claude API key** (`ANTHROPIC_API_KEY`, from console.anthropic.com). This is what actually reads postings and judges relocation. Scoring uses a small model, so a run costs cents. Without a key the radar still works with keyword rules, but it's much cruder.
 3. **Optional sources:**
    - **Adzuna:** get a free key at developer.adzuna.com and fill `ADZUNA_APP_ID` / `ADZUNA_APP_KEY`.
+   - **hh.ru:** its vacancy search only answers registered apps. Register a free app at https://dev.hh.ru, get an application token and put it in `HH_ACCESS_TOKEN`. Until then the source is skipped (staff.am and LinkedIn still cover Armenia).
    - **LinkedIn:** on LinkedIn, create job alerts (e.g. "Java Developer", "Full Stack Developer", location Germany, daily, by email). Put your Gmail address in `IMAP_USER` and a Gmail [app password](https://myaccount.google.com/apppasswords) in `IMAP_PASSWORD`. The radar only reads those alert emails. It never logs in to LinkedIn, so your account is safe.
 
 ```bash
@@ -36,6 +37,9 @@ Open http://localhost:4310. The first check starts by itself. After that it runs
 4. **Delivery:** "no" and "German required" go to the *Filtered out* tab with the reason, so you can double-check. Everything else goes to Telegram and *All matches*.
 
 ## Dashboard
+
+- **Where:** *Abroad* (relocation and visa, with country pills), *Armenia* (no move needed, so relocation isn't judged) and *Remote* (only jobs open to people in Armenia), or *Everywhere*.
+- **Role:** *Backend* shows server-side jobs without frontend work; also *Full stack* and *Frontend*. The AI labels each new job; older ones are labelled from their title and description.
 
 - **New:** matches found since you last pressed *Mark all as seen*. They stay there until you do, so missing a few days is fine.
 - **All matches:** grouped by the day they were found. You can filter by relocation verdict, source and minimum score, and search across title, company, city and skills.
