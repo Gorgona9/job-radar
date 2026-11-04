@@ -70,18 +70,27 @@ async function doRun({ telegram = true, log = console.log } = {}) {
     else { job.state = 'match'; newMatches.push(job); }
   }
 
-  const errors = Object.entries(report).flatMap(([k, r]) => (r.errors || []).map((e) => (e.startsWith(k) ? e : `${k}: ${e}`)));
+  // Scoring problems are reported like a source, so they show in the run log and in Telegram.
+  const stillPending = Object.values(db.jobs).filter((j) => j.state === 'pending').length;
+  const scoringErrors = [];
+  if (verdicts.fatal) scoringErrors.push(`AI scoring stopped: ${verdicts.fatal}. ${stillPending} jobs are waiting and will be scored on the next run.`);
+  if (verdicts.failed) scoringErrors.push(`${verdicts.failed} job(s) could not be scored (first error: ${verdicts.firstError})`);
+  report.scoring = { found: batch.length - batch.filter((j) => j.state === 'pending').length, errors: scoringErrors };
+
+  const errorsOf = (rep) => Object.entries(rep || {}).flatMap(([k, r]) => (r.errors || []).map((e) => (e.startsWith(k) ? e : `${k}: ${e}`)));
+  const errors = errorsOf(report);
+  const previousErrors = errorsOf(db.runs.at(-1)?.sources);
   let telegramResult = 'disabled for this run';
   if (telegram) {
     const send = newMatches.filter((j) => config.telegram.sendVerdicts.includes(j.verdict.relocation) && j.verdict.score >= config.telegram.minScore);
-    try { telegramResult = await notifyNewMatches(send, { filteredCount: filtered, errors }); }
+    try { telegramResult = await notifyNewMatches(send, { filteredCount: filtered, errors, previousErrors }); }
     catch (e) { telegramResult = 'failed: ' + e.message; }
   }
 
   const run = {
     at: now, seconds: Math.round((Date.now() - started) / 1000),
     collected: raw.length, new: fresh.length, matches: newMatches.length, filtered,
-    pending: Object.values(db.jobs).filter((j) => j.state === 'pending').length,
+    pending: stillPending,
     sources: report, telegram: telegramResult,
   };
   db.runs.push(run);

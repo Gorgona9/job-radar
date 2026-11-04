@@ -44,7 +44,15 @@ export async function callClaude({ model, system, user, maxTokens = 800 }) {
     });
     if (res.status === 429 || res.status >= 500) { await sleep(2000 * (attempt + 1)); continue; }
     const body = await res.json();
-    if (!res.ok) throw new Error(`Claude API ${res.status}: ${body?.error?.message || JSON.stringify(body)}`);
+    if (!res.ok) {
+      const msg = body?.error?.message || JSON.stringify(body);
+      const err = new Error(`Claude API ${res.status}: ${msg}`);
+      // Account-level problems fail every call the same way — no point trying the next job.
+      if (/credit balance/i.test(msg)) err.fatal = 'Anthropic credit balance is too low — add credits at console.anthropic.com → Plans & Billing';
+      else if (res.status === 401) err.fatal = 'Anthropic API key was rejected — check ANTHROPIC_API_KEY';
+      else if (res.status === 403) err.fatal = `Anthropic API refused access: ${msg}`;
+      throw err;
+    }
     return (body.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
   }
   throw new Error('Claude API kept returning 429/5xx');
@@ -106,19 +114,29 @@ export async function scoreJobs(jobs, profile, config, log = console.log) {
   const results = new Map();
   const queue = [...jobs];
   let done = 0;
+  let failed = 0, firstError = null;
   async function worker() {
-    while (queue.length) {
+    while (queue.length && !results.fatal) {
       const job = queue.shift();
       try {
         const v = useAi ? await scoreWithClaude(job, profile, config) : scoreWithRules(job, profile);
         results.set(job.id, finalize(job, v, config));
       } catch (e) {
+        if (e.fatal) {
+          if (!results.fatal) log(`  AI scoring stopped: ${e.fatal}`);
+          results.fatal = e.fatal; // other workers stop too; unscored jobs stay pending for the next run
+          results.set(job.id, { error: e.message });
+          break;
+        }
         log(`  scoring failed for "${job.title}": ${e.message}`);
         results.set(job.id, { error: e.message });
+        failed++; firstError ??= e.message;
       }
       if (++done % 20 === 0) log(`  scored ${done}/${jobs.length}`);
     }
   }
   await Promise.all(Array.from({ length: useAi ? config.scoring.concurrency : 1 }, worker));
+  results.failed = failed;
+  results.firstError = firstError;
   return results;
 }

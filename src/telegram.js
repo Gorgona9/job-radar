@@ -38,9 +38,17 @@ function jobBlock(j) {
 }
 
 // Sends every new match, best first, split into as many messages as needed.
-export async function notifyNewMatches(matches, { filteredCount = 0, errors = [] } = {}) {
+// With no new matches, problems are still sent, but only when they differ from the previous run's,
+// so a source that stays broken doesn't ping you every 6 hours.
+export async function notifyNewMatches(matches, { filteredCount = 0, errors = [], previousErrors = [] } = {}) {
   if (!telegramConfigured()) return 'Telegram not configured';
-  if (!matches.length) return 'nothing new to send';
+  if (!matches.length) {
+    const norm = (list) => [...new Set(list.map((e) => e.replace(/\d+/g, '#')))].sort().join('\n'); // ignore changing counts
+    if (!errors.length) return 'nothing new to send';
+    if (norm(errors) === norm(previousErrors)) return 'nothing new to send (same problems as last run)';
+    await send('⚠️ <b>Job radar: no new jobs this run, and something needs attention</b>\n\n' + errors.map((e) => '• ' + escHtml(e)).join('\n').slice(0, 3500));
+    return 'sent problem report';
+  }
   const cfg = loadConfig();
   const sorted = [...matches].sort((a, b) => b.verdict.score - a.verdict.score);
   const header = `🚆 <b>${sorted.length} new job${sorted.length > 1 ? 's' : ''} with possible relocation</b>\n${filteredCount} others filtered out. History: ${escHtml(cfg.telegram.dashboardUrl)}`;
