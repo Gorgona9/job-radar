@@ -37,6 +37,17 @@ Seniority: mid-senior / senior individual contributor. Not a people manager.
 - Integrations: Stripe, RevenueCat, Resend, Edamam, USDA FoodData Central, Slack
 - Known gaps: Kubernetes, Kafka / event streaming at scale, Hibernate/JPA in depth, large-scale cloud (AWS/GCP/Azure managed services), commercial React (React/Next.js is from personal projects), Go / Rust / C# / .NET, native iOS/Android, data/ML engineering
 
+## Realistic chances — commercial vs. personal experience (used for the fit score)
+Recruiters count commercial (paid, in-team) years. Personal projects show she can learn a stack fast, but they rarely get her past a "N years of X in production" requirement.
+- CORE, commercial 6+ years (strongest chance): Java (Dropwizard microservices), Spring Boot / Spring, Vue 3 / Vue.js + TypeScript/JavaScript, PostgreSQL, MongoDB, REST / OpenAPI, microservices, Maven, JUnit 5, GitLab CI/CD, Docker, RabbitMQ, Keycloak/OIDC/JWT, Linux, Ansible.
+- CLOSE to core (recruiters normally accept): Angular (AngularJS commercially 2017–2019; Angular 2+ is a short ramp-up), MySQL/MariaDB, Jenkins, SonarQube, Nexus.
+- SECOND tier (part of her profile, a little lower than core): Kotlin (JVM), Python (FastAPI).
+- PERSONAL / side projects only (counts partly, not as job years): React 19, Next.js, React Native + Expo, Flutter/Dart, Supabase, Redis, AWS Lightsail, Vercel, Claude API / LLM features, Stripe.
+- NOT her profile (she does not target these roles): PHP / Laravel / Symfony, Node.js / NestJS / Express backends. A job built around PHP or Node is a poor fit even if she has touched it.
+- NOT in her experience: Kubernetes, Kafka at scale, Hibernate/JPA in depth, AWS/GCP/Azure managed services at scale, Go, Rust, C#/.NET, C++, Ruby, Scala, Elixir, native iOS/Android, data/ML engineering, Terraform.
+- Seniority: real level is senior IC (9 years). Lead / staff / principal / architect / founding-engineer / manager roles are a stretch: she has no formal tech-lead title.
+- Languages for work: English (B2), Russian (C2), Armenian (native). Any other language at working level (German, Dutch, French, Portuguese, Spanish, Polish, Italian…) as a must = she cannot apply.
+
 ## Personal projects (always mention in cover letters)
 - GitHub: https://github.com/Gorgona9
 - Bragi — bragi.fit (solo, shipped on iOS, Android and web): AI-powered recipe and nutrition app with diet communities. Turborepo monorepo: React Native + Expo app, Next.js 16 / React 19 web + admin, Python FastAPI backend, Supabase Postgres with RLS, Upstash Redis, Claude (Sonnet vision + Haiku) with cost-tracked usage, Stripe + RevenueCat, Sentry, PostHog, Playwright + k6 + Lighthouse CI. Vercel + Railway.

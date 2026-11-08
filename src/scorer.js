@@ -11,7 +11,9 @@ Return ONLY a JSON object, no prose, no code fences:
  "german": "none" | "nice" | "required",
  "work_mode": "onsite" | "hybrid" | "remote" | "unknown",
  "country": "country of the office in English (e.g. \"Germany\", \"Armenia\") — also when remote work is possible; \"Remote\" only if there is no office location at all",
+ "other_language": "name of a language other than English, Russian or Armenian that is a MUST at working level (e.g. \"Portuguese\", \"Dutch\", \"French\"), or null — do not repeat German here",
  "role": "backend" | "frontend" | "fullstack" | "other",
+ "primary_stack": "java" | "kotlin" | "vue" | "angular" | "react" | "node" | "python" | "php" | "mobile" | "other",
  "seniority": "junior" | "mid" | "senior" | "lead" | "unknown",
  "salary": { "min": number|null, "max": number|null } ,
  "matched_skills": ["max 6 of her skills that this job asks for"],
@@ -29,8 +31,16 @@ Rules:
 - Remote job: "yes" if it is explicitly open to Armenia, worldwide, or anywhere in a region that includes Armenia (e.g. EMEA, CIS); "likely"/"unclear" if it doesn't say; "no" if limited to countries she doesn't live in.
 - role: "backend" = server-side work with NO frontend tasks (a frontend framework at most as a "nice to have"); "frontend" = UI work only; "fullstack" = both sides are part of the job; "other" = mobile, data, QA, management, unclear, etc.
 - german "required" only when German at business/fluent/C1+ level is a must. "A plus" = "nice". (Armenian and Russian requirements are fine — she is native/C2.)
+- primary_stack: the main BACKEND language/framework when the job has backend work (Java + Spring → "java", Java backend + React UI → "java", Node/Express/NestJS → "node", Django/FastAPI → "python", Laravel/Symfony → "php", Go/C#/.NET/Ruby/Scala/C++ etc. → "other"). For a frontend-only job, the main framework ("vue", "angular", "react"). "mobile" = iOS/Android/React Native/Flutter is the main work.
+- seniority "lead" also covers staff, principal, architect, founding engineer, tech lead and head-of roles.
 - salary: yearly EUR if stated, else nulls. Convert monthly to yearly and other currencies (AMD, RUB, USD…) to EUR.
-- fit: how well her real skills cover the MUST-HAVE requirements and seniority. Ignore relocation and language when scoring fit.
+- fit: her REALISTIC chance of being invited to interview, judged like a recruiter screening her CV. Ignore relocation and language when scoring fit. Use the "Realistic chances" section of the profile: CORE and CLOSE skills count fully, SECOND-tier (Kotlin, Python) a little lower, PERSONAL-only skills about half, and "NOT her profile" stacks (PHP, Node.js) barely at all. Bands:
+  85–100: main stack is her core (Java / Spring Boot backend, Vue/TypeScript, or Java + Vue/Angular full stack), senior/mid level, at most one minor learnable gap.
+  70–84: core stack with 1–2 real gaps (e.g. Kafka, Kubernetes, Hibernate, a cloud provider, a domain), or Angular-heavy roles.
+  55–70: Kotlin or Python backend roles (second tier — part of her profile, a little below Java), OR core stack with many must-have gaps, OR the description is too short to judge.
+  35–54: React-heavy role where her React is personal-project only; React Native / Flutter / Next.js as the main thing; lead/staff/founding level.
+  0–34: PHP or Node.js backend roles (not her profile), or a main language/domain she doesn't have (Go, C#, Ruby, Scala, native mobile, ML/data, embedded, DevOps/SRE), or clearly junior/intern.
+  Do not give high fit just because many keywords match — weigh the 2–3 MUST-HAVE technologies the role is built around. List personal-only skills that are must-haves in "gaps" (e.g. "React — only from personal projects").
 
 CANDIDATE PROFILE:
 `;
@@ -89,18 +99,27 @@ function scoreWithRules(job, profile) {
   const text = `${job.title}\n${job.description || ''}`;
   const pos = text.match(RELOCATION_POSITIVE);
   const english = /\b(english|international team|nationalities)\b/i.test(text);
-  const skills = ['Java', 'Spring', 'Kotlin', 'Vue', 'Angular', 'TypeScript', 'PostgreSQL', 'MongoDB', 'MySQL', 'Docker', 'AWS', 'PHP', 'Laravel', 'Flutter', 'Node', 'NestJS', 'REST', 'GitLab'];
-  const matched = skills.filter((s) => new RegExp(`\\b${s}\\b`, 'i').test(text));
+  // Commercial core skills weigh most; side-project skills count a little.
+  const core = ['Java', 'Spring', 'Dropwizard', 'Vue', 'TypeScript', 'PostgreSQL', 'MongoDB', 'microservices', 'REST', 'Maven', 'GitLab', 'Docker', 'RabbitMQ', 'Keycloak'];
+  const close = ['Kotlin', 'Python', 'FastAPI', 'Angular', 'MySQL', 'Jenkins', 'JavaScript'];
+  const side = ['React', 'Next.js', 'Flutter', 'AWS'];
+  const has = (s) => new RegExp(`\\b${s.replace('.', '\\.')}\\b`, 'i').test(text);
+  const mc = core.filter(has), ml = close.filter(has), ms = side.filter(has);
+  const matched = [...mc, ...ml, ...ms];
+  const primary_stack = /\b(java|spring)\b/i.test(text) ? 'java' : /\bkotlin\b/i.test(text) ? 'kotlin' : /\bvue/i.test(text) ? 'vue'
+    : /\bangular/i.test(text) ? 'angular' : /\b(django|fastapi|flask|python)\b/i.test(text) ? 'python' : /\b(php|laravel|symfony)\b/i.test(text) ? 'php'
+    : /\b(node(?:\.?js)?|nestjs|express)\b/i.test(text) ? 'node' : /\breact\b/i.test(text) ? 'react' : 'other';
   return {
     relocation: pos ? 'yes' : english && job.description ? 'likely' : 'unclear',
     relocation_evidence: pos ? `Mentions "${pos[0]}"` : english ? 'English-speaking/international team mentioned' : 'Nothing stated',
     german: germanRequiredHeuristic(text) ? 'required' : /german|deutsch/i.test(text) ? 'nice' : 'none',
     work_mode: /hybrid/i.test(text) ? 'hybrid' : job.remote ? 'remote' : 'unknown',
-    seniority: /senior|sr\./i.test(job.title) ? 'senior' : /lead|principal|staff/i.test(job.title) ? 'lead' : /junior/i.test(job.title) ? 'junior' : 'unknown',
+    seniority: /\b(lead|principal|staff|architect|founding|head of)\b/i.test(job.title) ? 'lead' : /senior|sr\./i.test(job.title) ? 'senior' : /junior/i.test(job.title) ? 'junior' : 'unknown',
     salary: job.salary || { min: null, max: null },
     matched_skills: matched.slice(0, 6),
     gaps: [],
-    fit: Math.min(95, 25 + matched.length * 12),
+    primary_stack,
+    fit: Math.min(90, 20 + mc.length * 10 + ml.length * 6 + ms.length * 3),
     summary: 'Keyword-based estimate (add ANTHROPIC_API_KEY for a real read of the posting).',
     by: 'rules',
   };
@@ -108,6 +127,23 @@ function scoreWithRules(job, profile) {
 
 const RELOC_WEIGHT = { yes: 1, likely: 0.85, unclear: 0.6, no: 0.1 };
 const GERMAN_WEIGHT = { none: 1, nice: 0.9, required: 0.3 };
+
+// Bump when the scoring rules change: open matches scored with an older version get re-scored in later runs.
+export const SCORING_VERSION = 3;
+
+// Hard ceilings on fit, so the model can't rate a job highly on side-project skills alone.
+// Java/Spring Boot/Vue are her core; Kotlin and Python a step lower; React is side-project only; PHP and Node are not her profile.
+const STACK_CAP = { java: 100, vue: 100, angular: 85, kotlin: 70, python: 70, react: 55, mobile: 35, node: 30, php: 30, other: 30 };
+const SENIORITY_CAP = { lead: 58, junior: 65 };
+
+export function realisticFit(job, verdict) {
+  let fit = verdict.fit ?? 50;
+  const stack = String(verdict.primary_stack || '').toLowerCase();
+  if (STACK_CAP[stack] != null) fit = Math.min(fit, STACK_CAP[stack]);
+  if (SENIORITY_CAP[verdict.seniority] != null) fit = Math.min(fit, SENIORITY_CAP[verdict.seniority]);
+  if ((job.description || '').length < 300) fit = Math.min(fit, 60); // can't judge requirements from a title
+  return Math.round(fit);
+}
 
 export function finalize(job, verdict, config) {
   const salary = verdict.salary?.min || verdict.salary?.max ? verdict.salary : job.salary || null;
@@ -122,8 +158,12 @@ export function finalize(job, verdict, config) {
   const top = salary?.max || salary?.min;
   // The Blue Card salary line only matters when she moves to the EU, not for jobs in Armenia or remote.
   const blueCard = !regions.includes('abroad') || !top ? 'unknown' : (salary.min || top) >= t ? 'ok' : top < t ? 'below' : 'unknown';
-  const score = Math.round(Math.max(0, Math.min(100, (verdict.fit ?? 50) * (RELOC_WEIGHT[relocation] ?? 0.6) * (GERMAN_WEIGHT[verdict.german] ?? 1) * (blueCard === 'below' ? 0.7 : 1) + (known ? 8 : 0))));
-  return { ...verdict, relocation, relocation_evidence: evidence, knownSponsor: known, salary, blueCard, score };
+  const aiFit = verdict.fit_ai ?? verdict.fit;
+  const fit = realisticFit(job, { ...verdict, fit: aiFit });
+  // Known sponsors help with the move, not with the skill match — so the bonus is small and only for jobs abroad.
+  const sponsorBonus = known && regions.includes('abroad') ? 5 : 0;
+  const score = Math.round(Math.max(0, Math.min(100, fit * (RELOC_WEIGHT[relocation] ?? 0.6) * (GERMAN_WEIGHT[verdict.german] ?? 1) * (blueCard === 'below' ? 0.7 : 1) + sponsorBonus)));
+  return { ...verdict, fit, fit_ai: aiFit, relocation, relocation_evidence: evidence, knownSponsor: known, salary, blueCard, score, v: SCORING_VERSION };
 }
 
 export async function scoreJobs(jobs, profile, config, log = console.log) {

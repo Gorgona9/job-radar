@@ -1,7 +1,7 @@
 import { pathToFileURL } from 'node:url';
 import { collectAll } from './sources/index.js';
 import { prefilter } from './filter.js';
-import { scoreJobs } from './scorer.js';
+import { scoreJobs, SCORING_VERSION } from './scorer.js';
 import { notifyNewMatches, telegramConfigured } from './telegram.js';
 import { loadJobs, saveJobs } from './store.js';
 import { loadConfig, loadProfile, dedupKey } from './util.js';
@@ -83,7 +83,13 @@ async function doRun({ telegram = true, log = console.log } = {}) {
   // Pending jobs (new + leftovers from earlier runs that hit the per-run cap or failed)
   for (const j of Object.values(db.jobs)) if (j.state === 'pending') toScore.push(j);
   toScore.sort((a, b) => (b.foundAt || '').localeCompare(a.foundAt || ''));
-  const batch = toScore.slice(0, config.scoring.maxJobsPerRun);
+  // Open matches scored under older rules get re-scored with whatever room is left this run (no new alert for them).
+  const outdated = Object.values(db.jobs)
+    .filter((j) => j.state === 'match' && !j.closedAt && (j.verdict?.v ?? 1) < SCORING_VERSION)
+    .sort((a, b) => (b.foundAt || '').localeCompare(a.foundAt || ''));
+  const batch = [...toScore, ...outdated].slice(0, config.scoring.maxJobsPerRun);
+  const rescoring = new Set(batch.filter((j) => j.state === 'match').map((j) => j.id));
+  if (rescoring.size) log(`  re-scoring ${rescoring.size} earlier matches with the updated rules${outdated.length > rescoring.size ? ` (${outdated.length - rescoring.size} left)` : ''}`);
   log(`  ${fresh.length} new postings, ${filtered} filtered by rules, scoring ${batch.length}${toScore.length > batch.length ? ` (${toScore.length - batch.length} left for next run)` : ''}`);
 
   const verdicts = await scoreJobs(batch, profile, config, log);
@@ -95,7 +101,10 @@ async function doRun({ telegram = true, log = console.log } = {}) {
     job.scoredAt = now;
     if (v.relocation === 'no') { job.state = 'filtered'; job.filterReason = `No relocation: ${v.relocation_evidence || ''}`.trim(); filtered++; }
     else if (v.german === 'required') { job.state = 'filtered'; job.filterReason = 'Fluent German required'; filtered++; }
-    else { job.state = 'match'; newMatches.push(job); }
+    else if (v.other_language && !/^(english|russian|armenian|none|null)$/i.test(String(v.other_language).trim())) {
+      job.state = 'filtered'; job.filterReason = `${v.other_language} required`; filtered++;
+    }
+    else { job.state = 'match'; if (!rescoring.has(job.id)) newMatches.push(job); }
   }
 
   // Scoring problems are reported like a source, so they show in the run log and in Telegram.
@@ -103,7 +112,7 @@ async function doRun({ telegram = true, log = console.log } = {}) {
   const scoringErrors = [];
   if (verdicts.fatal) scoringErrors.push(`AI scoring stopped: ${verdicts.fatal}. ${stillPending} jobs are waiting and will be scored on the next run.`);
   if (verdicts.failed) scoringErrors.push(`${verdicts.failed} job(s) could not be scored (first error: ${verdicts.firstError})`);
-  report.scoring = { found: batch.length - batch.filter((j) => j.state === 'pending').length, errors: scoringErrors };
+  report.scoring = { found: batch.length - batch.filter((j) => j.state === 'pending').length, rescored: rescoring.size, errors: scoringErrors };
 
   const errorsOf = (rep) => Object.entries(rep || {}).flatMap(([k, r]) => (r.errors || []).map((e) => (e.startsWith(k) ? e : `${k}: ${e}`)));
   const errors = errorsOf(report);
